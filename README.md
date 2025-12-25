@@ -47,3 +47,12 @@ The output will be found in `out/hats-tools.zip`
 - [nxdumptool](https://github.com/DarkMatterCore/nxdumptool) (for RSA verify code)
 - [nx-hbloader](https://github.com/switchbrew/nx-hbloader)
 - Everyone who has contributed to this project!
+
+
+## Support My Work
+
+If you find this project useful, please consider supporting me by buying me a coffee!
+
+<a href="https://www.buymeacoffee.com/sthetixofficial" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" >
+</a>
