@@ -113,6 +113,34 @@ void log_write_arg(const char* s, va_list* v) {
     log_write_arg_internal(s, v);
 }
 
+// HATS-specific logging to sd:/hats-install.log (same as HATS payload)
+void hats_log_write(const char* s, ...) {
+    constexpr const char* hats_logpath = "sd:/hats-install.log";
+
+    std::va_list v{};
+    va_start(v, s);
+
+    const auto t = std::time(nullptr);
+    const auto tm = std::localtime(&t);
+
+    char buf[512];
+    const auto len = std::snprintf(buf, sizeof(buf), "[%02u:%02u:%02u] -> ", tm->tm_hour, tm->tm_min, tm->tm_sec);
+    std::vsnprintf(buf + len, sizeof(buf) - len, s, v);
+
+    SCOPED_MUTEX(&g_mutex);
+    auto f = std::fopen(hats_logpath, "a");
+    if (f) {
+        std::fprintf(f, "%s", buf);
+        std::fflush(f);
+        std::fclose(f);
+    }
+    if (nxlink_socket) {
+        std::printf("%s", buf);
+    }
+
+    va_end(v);
+}
+
 } // extern "C"
 
 #endif

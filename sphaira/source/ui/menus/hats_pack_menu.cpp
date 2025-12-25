@@ -4,6 +4,7 @@
 #include "ui/option_box.hpp"
 #include "ui/progress_box.hpp"
 #include "ui/error_box.hpp"
+#include "ui/warning_box.hpp"
 
 #include "app.hpp"
 #include "log.hpp"
@@ -17,6 +18,7 @@
 #include <yyjson.h>
 #include <dirent.h>
 #include <cstring>
+#include <ctime>
 
 namespace sphaira::ui::menu::hats {
 
@@ -73,6 +75,118 @@ void from_json(const fs::FsPath& path, std::vector<ReleaseEntry>& entries) {
     }
 }
 
+constexpr const char* BACKUP_PATH = "/sdbackup";
+
+auto CopyDirectoryRecursive(ProgressBox* pbox, fs::FsNativeSd& fs, const fs::FsPath& src, const fs::FsPath& dst) -> Result {
+    // Create destination directory
+    R_TRY(fs.CreateDirectory(dst));
+
+    // Open source directory
+    fs::Dir dir;
+    R_TRY(fs.OpenDirectory(src, FsDirOpenMode_ReadDirs | FsDirOpenMode_ReadFiles, &dir));
+
+    // Read all entries
+    std::vector<FsDirectoryEntry> entries;
+    R_TRY(dir.ReadAll(entries));
+
+    // Copy each entry
+    for (const auto& entry : entries) {
+        if (pbox->ShouldExit()) {
+            break;
+        }
+
+        std::string name = entry.name;
+        if (name == "." || name == "..") {
+            continue;
+        }
+
+        fs::FsPath src_path = std::string(src.s) + "/" + name;
+        fs::FsPath dst_path = std::string(dst.s) + "/" + name;
+
+        if (entry.type == FsDirEntryType_Dir) {
+            // Recursively copy subdirectory
+            Result rc = CopyDirectoryRecursive(pbox, fs, src_path, dst_path);
+            if (R_FAILED(rc)) {
+                hats_log_write("hats: warning - failed to copy directory %s: 0x%X, continuing...\n", static_cast<const char*>(src_path), rc);
+                // Continue anyway - don't abort entire backup
+            }
+        } else if (entry.type == FsDirEntryType_File) {
+            // Copy file
+            Result rc = pbox->CopyFile(&fs, src_path, dst_path, true); // single threaded for SD to SD
+            if (R_FAILED(rc)) {
+                hats_log_write("hats: warning - failed to copy file %s: 0x%X, continuing...\n", static_cast<const char*>(src_path), rc);
+                // Continue anyway - don't abort entire backup
+            }
+        }
+    }
+
+    return 0;
+}
+
+auto BackupExistingFolders(ProgressBox* pbox) -> Result {
+    fs::FsNativeSd fs;
+    R_TRY(fs.GetFsOpenResult());
+
+    hats_log_write("hats: starting backup of existing folders\n");
+
+    // Folders to backup
+    const fs::FsPath folders_to_backup[] = {
+        "/atmosphere",
+        "/bootloader"
+    };
+
+    // Create backup directory with timestamp
+    time_t now = time(nullptr);
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", localtime(&now));
+
+    // Create /sdbackup directory if it doesn't exist
+    fs.CreateDirectoryRecursively(BACKUP_PATH);
+
+    // Backup each folder
+    for (size_t i = 0; i < sizeof(folders_to_backup) / sizeof(folders_to_backup[0]); i++) {
+        const auto& folder = folders_to_backup[i];
+        hats_log_write("hats: processing folder %zu: %s\n", i, static_cast<const char*>(folder));
+
+        if (!fs.DirExists(folder)) {
+            hats_log_write("hats: %s does not exist, skipping backup\n", static_cast<const char*>(folder));
+            continue;
+        }
+
+        // Create backup path: /sdbackup/atmosphere_20231217_143000
+        std::string backup_folder = std::string(BACKUP_PATH) + "/" + folder.s + "_" + timestamp;
+        fs::FsPath backup_path = backup_folder.c_str();
+
+        hats_log_write("hats: backing up %s to %s\n", static_cast<const char*>(folder), static_cast<const char*>(backup_path));
+
+        // Clean up old backup if it exists
+        if (fs.DirExists(backup_path)) {
+            Result rc = fs.DeleteDirectoryRecursively(backup_path);
+            if (R_FAILED(rc)) {
+                hats_log_write("hats: warning - failed to delete old backup: 0x%X\n", rc);
+            }
+        }
+
+        // Copy the folder recursively
+        if (!pbox->ShouldExit()) {
+            pbox->NewTransfer("Backing up " + std::string(folder.s));
+            Result rc = CopyDirectoryRecursive(pbox, fs, folder, backup_path);
+
+            if (R_FAILED(rc)) {
+                hats_log_write("hats: backup failed for %s: 0x%X\n", static_cast<const char*>(folder), rc);
+                // Don't return - continue to next folder
+            } else {
+                hats_log_write("hats: successfully backed up %s\n", static_cast<const char*>(folder));
+            }
+        } else {
+            hats_log_write("hats: backup cancelled for %s\n", static_cast<const char*>(folder));
+        }
+    }
+
+    hats_log_write("hats: backup completed\n");
+    return 0;
+}
+
 auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Result {
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
@@ -85,14 +199,14 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     fs.CreateDirectoryRecursively(CACHE_PATH);
 
     // Clean up staging directory if it exists, then recreate it
-    log_write("hats: cleaning staging directory: %s\n", static_cast<const char*>(staging_path));
+    hats_log_write("hats: cleaning staging directory: %s\n", static_cast<const char*>(staging_path));
     if (fs.DirExists(staging_path)) {
         Result rc = fs.DeleteDirectoryRecursively(staging_path);
         if (R_FAILED(rc)) {
-            log_write("hats: warning - failed to delete staging directory: 0x%X\n", rc);
+            hats_log_write("hats: warning - failed to delete staging directory: 0x%X\n", rc);
             // Continue anyway, we'll try to extract over it
         } else {
-            log_write("hats: successfully deleted staging directory\n");
+            hats_log_write("hats: successfully deleted staging directory\n");
         }
     }
     fs.CreateDirectoryRecursively(staging_path);
@@ -100,10 +214,21 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     // Clean up any existing temp file
     fs.DeleteFile(DOWNLOAD_TEMP);
 
+    // Backup existing folders if enabled
+    if (App::GetBackupEnabled()) {
+        if (!pbox->ShouldExit()) {
+            Result rc = BackupExistingFolders(pbox);
+            if (R_FAILED(rc)) {
+                hats_log_write("hats: backup failed: 0x%X\n", rc);
+                // Continue anyway - backup is optional, show warning but don't block installation
+            }
+        }
+    }
+
     // Download the ZIP
     if (!pbox->ShouldExit()) {
         pbox->NewTransfer("Downloading " + release.asset_name);
-        log_write("hats: downloading %s\n", release.download_url.c_str());
+        hats_log_write("hats: downloading %s\n", release.download_url.c_str());
 
         const auto result = curl::Api().ToFile(
             curl::Url{release.download_url},
@@ -117,40 +242,40 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     // Extract to staging directory
     if (!pbox->ShouldExit()) {
         pbox->NewTransfer("Preparing installation...");
-        log_write("hats: extracting to staging directory\n");
+        hats_log_write("hats: extracting to staging directory\n");
 
         bool download_exists = fs.FileExists(DOWNLOAD_TEMP);
-        log_write("hats: download file exists: %s\n", download_exists ? "yes" : "no");
+        hats_log_write("hats: download file exists: %s\n", download_exists ? "yes" : "no");
 
         if (download_exists) {
             Result rc = thread::TransferUnzipAll(pbox, DOWNLOAD_TEMP, &fs, staging_path,
                 [&](const fs::FsPath& name, fs::FsPath& path) -> bool {
-                    log_write("hats: extracting file: %s -> %s\n", static_cast<const char*>(name), static_cast<const char*>(path));
+                    hats_log_write("hats: extracting file: %s -> %s\n", static_cast<const char*>(name), static_cast<const char*>(path));
                     return true;  // Extract all files
                 });
 
-            log_write("hats: extraction completed with result: 0x%X\n", rc);
+            hats_log_write("hats: extraction completed with result: 0x%X\n", rc);
 
             if (R_FAILED(rc)) {
-                log_write("hats: extraction failed with error: 0x%X\n", rc);
+                hats_log_write("hats: extraction failed with error: 0x%X\n", rc);
                 return rc;
             }
         } else {
-            log_write("hats: ERROR - download file does not exist!\n");
+            hats_log_write("hats: ERROR - download file does not exist!\n");
             return 0x2;
         }
     }
 
     // Commit file system changes
     if (!pbox->ShouldExit()) {
-        log_write("hats: committing file system changes\n");
+        hats_log_write("hats: committing file system changes\n");
         Result commit_result = fs.Commit();
-        log_write("hats: commit result: 0x%X\n", commit_result);
+        hats_log_write("hats: commit result: 0x%X\n", commit_result);
         R_TRY(commit_result);
     }
 
     // Verify staging files exist
-    log_write("hats: verifying staging files...\n");
+    hats_log_write("hats: verifying staging files...\n");
     // Build paths dynamically based on staging_path
     fs::FsPath staging_dirs[] = {
         staging_path + "/atmosphere",
@@ -159,13 +284,13 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     };
     for (const auto& dir : staging_dirs) {
         bool exists = fs.DirExists(dir);
-        log_write("hats: %s exists: %s\n", static_cast<const char*>(dir), exists ? "yes" : "no");
+        hats_log_write("hats: %s exists: %s\n", static_cast<const char*>(dir), exists ? "yes" : "no");
     }
 
     // Clean up temp file
     fs.DeleteFile(DOWNLOAD_TEMP);
 
-    log_write("hats: staging complete\n");
+    hats_log_write("hats: staging complete\n");
     return 0;
 }
 
@@ -315,7 +440,7 @@ void PackMenu::FetchReleases() {
 
             if (!result.success) {
                 m_error_message = "Failed to fetch releases. Check your internet connection.";
-                log_write("hats: failed to fetch releases\n");
+                hats_log_write("hats: failed to fetch releases\n");
                 return false;
             }
 
@@ -324,7 +449,7 @@ void PackMenu::FetchReleases() {
             if (m_releases.empty()) {
                 m_error_message = "No releases found.";
             } else {
-                log_write("hats: loaded %zu releases\n", m_releases.size());
+                hats_log_write("hats: loaded %zu releases\n", m_releases.size());
                 SetIndex(0);
             }
 
@@ -345,10 +470,77 @@ void PackMenu::DownloadAndInstall() {
     auto app = App::GetApp();
     const fs::FsPath staging_path = app->m_hats_staging_path.Get().c_str();
 
-    App::Push<OptionBox>(
-        "Download " + display_name + "?\n\n"
-        "Files will be extracted to " + std::string(staging_path) + ".",
-        "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
+    // Show backup warning first (unless skipped in Advanced options)
+    if (!App::GetSkipBackupWarning()) {
+        App::Push<WarningBox>(
+            "Make sure you have backed up\nyour SD card!",
+            "Cancel"_i18n, "Continue"_i18n, 1, [this, release, display_name, staging_path](auto op_index) {
+                if (!op_index || *op_index != 1) {
+                    return;
+                }
+
+                // Show download confirmation
+                App::Push<OptionBox>(
+                    "Download " + display_name + "?\n\n"
+                    "Files will be extracted to " + std::string(staging_path) + ".",
+                    "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
+                        if (!op_index || *op_index != 1) {
+                            return;
+                        }
+
+                        App::Push<ProgressBox>(0, "Installing"_i18n, display_name,
+                            [release](auto pbox) -> Result {
+                                return DownloadAndExtract(pbox, release);
+                            },
+                            [display_name](Result rc) {
+                                if (R_SUCCEEDED(rc)) {
+                                    fs::FsNativeSd fs;
+                                    // Get installer payload path from config
+                                    auto app = App::GetApp();
+                                    const fs::FsPath installer_payload = app->m_hats_installer_payload.Get().c_str();
+
+                                    hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
+
+                                    bool installer_exists = fs.FileExists(installer_payload);
+                                    hats_log_write("hats: installer file exists: %s\n", installer_exists ? "yes" : "no");
+
+                                    if (installer_exists) {
+                                        // Show confirmation dialog before launching payload
+                                        App::Push<OptionBox>(
+                                            display_name + " downloaded",
+                                            "Back"_i18n, "Launch"_i18n, 1, [installer_payload](auto op_index) {
+                                                if (!op_index || *op_index != 1) {
+                                                    hats_log_write("hats: user chose not to launch installer\n");
+                                                    return;
+                                                }
+
+                                                hats_log_write("hats: launching HATS installer: %s\n", static_cast<const char*>(installer_payload));
+                                                bool reboot_success = utils::rebootToPayload(installer_payload);
+                                                hats_log_write("hats: rebootToPayload result: %s\n", reboot_success ? "success" : "failed");
+                                                if (!reboot_success) {
+                                                    App::Push<OptionBox>("Failed to launch HATS installer!\n\n" + std::string(installer_payload), "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
+                                                }
+                                            }
+                                        );
+                                    } else {
+                                        hats_log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
+                                        App::Push<OptionBox>("HATS-installer payload not found", "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
+                                    }
+                                } else {
+                                    App::Push<ErrorBox>(rc, "Failed to download " + display_name);
+                                }
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    } else {
+        // Skip backup warning, go directly to download confirmation
+        App::Push<OptionBox>(
+            "Download " + display_name + "?\n\n"
+            "Files will be extracted to " + std::string(staging_path) + ".",
+            "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
             if (!op_index || *op_index != 1) {
                 return;
             }
@@ -364,10 +556,10 @@ void PackMenu::DownloadAndInstall() {
                         auto app = App::GetApp();
                         const fs::FsPath installer_payload = app->m_hats_installer_payload.Get().c_str();
 
-                        log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
+                        hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
 
                         bool installer_exists = fs.FileExists(installer_payload);
-                        log_write("hats: installer file exists: %s\n", installer_exists ? "yes" : "no");
+                        hats_log_write("hats: installer file exists: %s\n", installer_exists ? "yes" : "no");
 
                         if (installer_exists) {
                             // Show confirmation dialog before launching payload
@@ -375,20 +567,20 @@ void PackMenu::DownloadAndInstall() {
                                 display_name + " downloaded",
                                 "Back"_i18n, "Launch"_i18n, 1, [installer_payload](auto op_index) {
                                     if (!op_index || *op_index != 1) {
-                                        log_write("hats: user chose not to launch installer\n");
+                                        hats_log_write("hats: user chose not to launch installer\n");
                                         return;
                                     }
 
-                                    log_write("hats: launching HATS installer: %s\n", static_cast<const char*>(installer_payload));
+                                    hats_log_write("hats: launching HATS installer: %s\n", static_cast<const char*>(installer_payload));
                                     bool reboot_success = utils::rebootToPayload(installer_payload);
-                                    log_write("hats: rebootToPayload result: %s\n", reboot_success ? "success" : "failed");
+                                    hats_log_write("hats: rebootToPayload result: %s\n", reboot_success ? "success" : "failed");
                                     if (!reboot_success) {
                                         App::Push<OptionBox>("Failed to launch HATS installer!\n\n" + std::string(installer_payload), "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
                                     }
                                 }
                             );
                         } else {
-                            log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
+                            hats_log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
                             App::Push<OptionBox>("HATS-installer payload not found", "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
                         }
                     } else {
@@ -396,8 +588,9 @@ void PackMenu::DownloadAndInstall() {
                     }
                 }
             );
-        }
-    );
+            }
+        );
+    }
 }
 
 void PackMenu::UpdateSubheading() {

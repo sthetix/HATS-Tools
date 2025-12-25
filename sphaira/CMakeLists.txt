@@ -96,6 +96,7 @@ add_executable(hats-tools
     source/ui/scrollable_text.cpp
     source/ui/sidebar.cpp
     source/ui/widget.cpp
+    source/ui/warning_box.cpp
     source/ui/list.cpp
     source/ui/scrolling_text.cpp
     source/ui/music_player.cpp

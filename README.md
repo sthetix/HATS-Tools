@@ -10,6 +10,14 @@ A tool for the Nintendo Switch that allows you to:
 - **Fetch Firmware** - Download firmware for installation via Daybreak
 - **Uninstall Components** - Remove installed components (except Atmosphere/Hekate)
 
+## Features
+
+### Automatic Backup
+Before installing a HATS pack, the tool can automatically back up your existing `/atmosphere` and `/bootloader` folders to `/sdbackup/` with timestamps (e.g., `/sdbackup/atmosphere_20231225_143000`). This feature can be toggled in the Advanced Options menu.
+
+### Backup Warning
+A red warning popup reminds you to backup your SD card before installation. This reminder can be disabled in Advanced Options if you prefer.
+
 ## Building from source
 
 This project is based on Sphaira code, but stripped down to the essentials.

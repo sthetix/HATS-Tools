@@ -689,6 +689,14 @@ auto App::GetLogEnable() -> bool {
     return g_app->m_log_enabled.Get();
 }
 
+auto App::GetSkipBackupWarning() -> bool {
+    return g_app->m_skip_backup_warning.Get();
+}
+
+auto App::GetBackupEnabled() -> bool {
+    return g_app->m_backup_enabled.Get();
+}
+
 auto App::GetReplaceHbmenuEnable() -> bool {
     return g_app->m_replace_hbmenu.Get();
 }
@@ -721,6 +729,18 @@ void App::SetLogEnable(bool enable) {
         } else {
             log_file_exit();
         }
+    }
+}
+
+void App::SetSkipBackupWarning(bool enable) {
+    if (App::GetSkipBackupWarning() != enable) {
+        g_app->m_skip_backup_warning.Set(enable);
+    }
+}
+
+void App::SetBackupEnabled(bool enable) {
+    if (App::GetBackupEnabled() != enable) {
+        g_app->m_backup_enabled.Set(enable);
     }
 }
 
@@ -1316,6 +1336,8 @@ App::App(const char* argv0) {
 
         if (!std::strcmp(Section, INI_SECTION)) {
             if (app->m_log_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_skip_backup_warning.LoadFrom(Key, Value)) {}
+            else if (app->m_backup_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_replace_hbmenu.LoadFrom(Key, Value)) {}
             else if (app->m_default_music.LoadFrom(Key, Value)) {}
             else if (app->m_theme_path.LoadFrom(Key, Value)) {}
@@ -1765,6 +1787,14 @@ void App::DisplayAdvancedOptions(bool left_side) {
     options->Add<ui::SidebarEntryBool>("Logging"_i18n, App::GetLogEnable(), [](bool& enable){
         App::SetLogEnable(enable);
     }, "Logs to /config/hats-tools/log.txt"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Auto backup before install"_i18n, App::GetBackupEnabled(), [](bool& enable){
+        App::SetBackupEnabled(enable);
+    }, "Backs up atmosphere and bootloader to /sdbackup before HATS installation"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Skip backup reminder"_i18n, App::GetSkipBackupWarning(), [](bool& enable){
+        App::SetSkipBackupWarning(enable);
+    }, "Don't show backup warning before HATS installation"_i18n);
 
     // HIDDEN: options->Add<ui::SidebarEntryBool>("Replace hbmenu on exit"_i18n, App::GetReplaceHbmenuEnable(), [](bool& enable){
     //     App::SetReplaceHbmenuEnable(enable);
