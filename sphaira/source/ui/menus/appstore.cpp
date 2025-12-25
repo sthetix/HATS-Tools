@@ -35,8 +35,8 @@
 namespace sphaira::ui::menu::appstore {
 namespace {
 
-constexpr fs::FsPath REPO_PATH{"/switch/sphaira/cache/appstore/repo.json"};
-constexpr fs::FsPath CACHE_PATH{"/switch/sphaira/cache/appstore"};
+constexpr fs::FsPath REPO_PATH{"/switch/hats-tools/cache/appstore/repo.json"};
+constexpr fs::FsPath CACHE_PATH{"/switch/hats-tools/cache/appstore"};
 constexpr auto URL_BASE = "https://switch.cdn.fortheusers.org";
 constexpr auto URL_JSON = "https://switch.cdn.fortheusers.org/repo.json";
 constexpr auto URL_POST_FEEDBACK = "http://switchbru.com/appstore/feedback";
@@ -371,7 +371,7 @@ auto UninstallApp(ProgressBox* pbox, const Entry& entry) -> Result {
 // 3. parse manifest and unzip everything to placeholder
 // 4. move everything from placeholder to normal location
 auto InstallApp(ProgressBox* pbox, const Entry& entry) -> Result {
-    static const fs::FsPath zip_out{"/switch/sphaira/cache/appstore/temp.zip"};
+    static const fs::FsPath zip_out{"/switch/hats-tools/cache/appstore/temp.zip"};
     std::vector<u8> buf(1024 * 512); // 512KiB
 
     fs::FsNativeSd fs;
@@ -879,9 +879,9 @@ void EntryMenu::SetIndex(s64 index) {
 
 Menu::Menu(u32 flags) : grid::Menu{"AppStore"_i18n, flags} {
     fs::FsNativeSd fs;
-    fs.CreateDirectoryRecursively("/switch/sphaira/cache/appstore/icons");
-    fs.CreateDirectoryRecursively("/switch/sphaira/cache/appstore/banners");
-    fs.CreateDirectoryRecursively("/switch/sphaira/cache/appstore/screens");
+    fs.CreateDirectoryRecursively("/switch/hats-tools/cache/appstore/icons");
+    fs.CreateDirectoryRecursively("/switch/hats-tools/cache/appstore/banners");
+    fs.CreateDirectoryRecursively("/switch/hats-tools/cache/appstore/screens");
 
     this->SetActions(
         std::make_pair(Button::B, Action{"Back"_i18n, [this](){

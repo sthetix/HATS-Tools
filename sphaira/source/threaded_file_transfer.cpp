@@ -525,6 +525,8 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
         buffer_size = SMALL_BUFFER_SIZE;
     }
 
+    log_write("[TRANSFER] starting transfer (size: %lld, mode: %u, buffer: %llu)\n", size, mode, buffer_size);
+
     if (mode == Mode::SingleThreadedIfSmaller) {
         if (size <= buffer_size) {
             mode = Mode::SingleThreaded;
@@ -534,12 +536,11 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
     }
 
     // single threaded pull buffer is not supported.
-    log_write("checking invalid transfer mode: %u %u\n", mode == Mode::MultiThreaded, !sfunc);
     R_UNLESS(mode == Mode::MultiThreaded || !sfunc, 0x1);
-    log_write("valid transfer mode\n");
 
     // todo: support single threaded pull buffer.
     if (mode == Mode::SingleThreaded) {
+        log_write("[TRANSFER] using single-threaded mode\n");
         std::vector<u8> buf(buffer_size);
 
         s64 offset{};
@@ -559,6 +560,7 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
             pbox->UpdateTransfer(offset, size);
         }
 
+        log_write("[TRANSFER] completed single-threaded transfer\n");
         R_SUCCEED();
     }
     else {
@@ -577,7 +579,7 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
         ON_SCOPE_EXIT(threadClose(&t_write));
 
         const auto start_threads = [&]() -> Result {
-            log_write("starting threads\n");
+            log_write("[TRANSFER] starting threads\n");
             R_TRY(threadStart(std::addressof(t_read)));
             R_TRY(threadStart(std::addressof(t_decompress)));
             R_TRY(threadStart(std::addressof(t_write)));
@@ -589,15 +591,15 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
         ON_SCOPE_EXIT(threadWaitForExit(std::addressof(t_write)));
 
         if (sfunc) {
-            log_write("[THREAD] doing sfuncn\n");
+            log_write("[TRANSFER] doing sfunc\n");
             t_data.SetPullResult(sfunc(start_threads, [&](void* data, s64 size, u64* bytes_read) -> Result {
                 R_TRY(t_data.GetResults());
                 return t_data.Pull(data, size, bytes_read);
             }));
         } else {
-            log_write("[THREAD] doing normal\n");
+            log_write("[TRANSFER] doing normal multi-threaded transfer\n");
             R_TRY(start_threads());
-            log_write("[THREAD] started threads\n");
+            log_write("[TRANSFER] started threads\n");
 
             // use the read progress as the write output may be smaller due to compressing
             // so read will show a more accurate progress.
@@ -622,7 +624,7 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
         }
 
         // wait for all threads to close.
-        log_write("waiting for threads to close\n");
+        log_write("[TRANSFER] waiting for threads to close\n");
         while (t_data.IsAnyRunning()) {
             t_data.WakeAllThreads();
             pbox->Yield();
@@ -636,16 +638,16 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
             }
             break;
         }
-        log_write("threads closed\n");
+        log_write("[TRANSFER] threads closed\n");
 
         // if any of the threads failed, wake up all threads so they can exit.
         if (R_FAILED(t_data.GetResults())) {
-            log_write("some reads failed, waking threads\n");
-            log_write("returning due to fail\n");
+            log_write("[TRANSFER] transfer failed, waking threads\n");
+            log_write("[TRANSFER] returning due to fail\n");
             return t_data.GetResults();
         }
 
-        log_write("returning from thread func\n");
+        log_write("[TRANSFER] completed successfully\n");
         return t_data.GetResults();
     }
 }
@@ -672,14 +674,15 @@ Result TransferPull(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfunc, 
 }
 
 Result TransferUnzip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::FsPath& path, s64 size, u32 crc32, Mode mode) {
+    log_write("[ZIP] extracting: %s (size: %lld)\n", path.s, size);
     Result rc;
     if (R_FAILED(rc = fs->CreateDirectoryRecursivelyWithPath(path)) && rc != FsError_PathAlreadyExists) {
-        log_write("failed to create folder: %s 0x%04X\n", path.s, rc);
+        log_write("[ZIP] failed to create folder: %s 0x%04X\n", path.s, rc);
         R_THROW(rc);
     }
 
     if (R_FAILED(rc = fs->CreateFile(path, size, 0)) && rc != FsError_PathAlreadyExists) {
-        log_write("failed to create file: %s 0x%04X\n", path.s, rc);
+        log_write("[ZIP] failed to create file: %s 0x%04X\n", path.s, rc);
         R_THROW(rc);
     }
 
@@ -698,7 +701,7 @@ Result TransferUnzip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::F
         [&](void* data, s64 off, s64 size, u64* bytes_read) -> Result {
             const auto result = unzReadCurrentFile(zfile, data, size);
             if (result <= 0) {
-                log_write("failed to read zip file: %s %d\n", path.s, result);
+                log_write("[ZIP] failed to read zip file: %s %d\n", path.s, result);
                 R_THROW(Result_UnzReadCurrentFile);
             }
 
@@ -719,10 +722,12 @@ Result TransferUnzip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::F
     // validate crc32 (if set in the info).
     R_UNLESS(!crc32 || crc32 == crc32_out, 0x8);
 
+    log_write("[ZIP] extracted: %s\n", path.s);
     R_SUCCEED();
 }
 
 Result TransferZip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::FsPath& path, u32* crc32, Mode mode) {
+    log_write("[ZIP] zipping: %s\n", path.s);
     fs::File f;
     R_TRY(fs->OpenFile(path, FsOpenMode_Read, &f));
 
@@ -744,7 +749,7 @@ Result TransferZip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::FsP
         nullptr,
         [&](const void* data, s64 off, s64 size) -> Result {
             if (ZIP_OK != zipWriteInFileInZip(zfile, data, size)) {
-                log_write("failed to write zip file: %s\n", path.s);
+                log_write("[ZIP] failed to write zip file: %s\n", path.s);
                 R_THROW(Result_ZipWriteInFileInZip);
             }
             R_SUCCEED();
@@ -759,6 +764,8 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
         R_THROW(Result_UnzGetGlobalInfo64);
     }
 
+    log_write("[ZIP] starting unzip all: %lld entries\n", ginfo.number_entry);
+
     if (UNZ_OK != unzGoToFirstFile(zfile)) {
         R_THROW(Result_UnzGoToFirstFile);
     }
@@ -768,13 +775,13 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
 
         if (i > 0) {
             if (UNZ_OK != unzGoToNextFile(zfile)) {
-                log_write("failed to unzGoToNextFile\n");
+                log_write("[ZIP] failed to unzGoToNextFile\n");
                 R_THROW(Result_UnzGoToNextFile);
             }
         }
 
         if (UNZ_OK != unzOpenCurrentFile(zfile)) {
-            log_write("failed to open current file\n");
+            log_write("[ZIP] failed to open current file\n");
             R_THROW(Result_UnzOpenCurrentFile);
         }
         ON_SCOPE_EXIT(unzCloseCurrentFile(zfile));
@@ -782,7 +789,7 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
         unz_file_info64 info;
         fs::FsPath name;
         if (UNZ_OK != unzGetCurrentFileInfo64(zfile, &info, name, sizeof(name), 0, 0, 0, 0)) {
-            log_write("failed to get current info\n");
+            log_write("[ZIP] failed to get current info\n");
             R_THROW(Result_UnzGetCurrentFileInfo64);
         }
 
@@ -791,6 +798,7 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
         // this function is used for the updater to change sphaira.nro to exe path.
         auto path = fs::AppendPath(base_path, name);
         if (filter && !filter(name, path)) {
+            log_write("[ZIP] skipping filtered file: %s\n", name.s);
             continue;
         }
 
@@ -804,7 +812,7 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
         if (path[path_len -1] == '/') {
             Result rc;
             if (R_FAILED(rc = fs->CreateDirectoryRecursively(path)) && rc != FsError_PathAlreadyExists) {
-                log_write("failed to create folder: %s 0x%04X\n", path.s, rc);
+                log_write("[ZIP] failed to create folder: %s 0x%04X\n", path.s, rc);
                 R_THROW(rc);
             }
         } else {
@@ -812,10 +820,12 @@ Result TransferUnzipAll(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs
         }
     }
 
+    log_write("[ZIP] finished unzip all\n");
     R_SUCCEED();
 }
 
 Result TransferUnzipAll(ui::ProgressBox* pbox, const fs::FsPath& zip_out, fs::Fs* fs, const fs::FsPath& base_path, const UnzipAllFilter& filter, Mode mode) {
+    log_write("[ZIP] opening zip: %s to %s\n", zip_out.s, base_path.s);
     zlib_filefunc64_def file_func;
     mz::FileFuncStdio(&file_func);
 

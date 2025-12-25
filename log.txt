@@ -1,0 +1,545 @@
+=== Log started ===
+[03:28:50] -> hello world v1.0.0 [0474566]
+[03:28:50] -> [FS] creating directory: /config/hats-tools
+[03:28:50] -> [FS] opening file: /config/hats-tools/i18n/en.json (mode: 0x1)
+[03:28:50] -> [FS] creating directory: /config/hats-tools/assoc
+[03:28:50] -> [FS] opening file: romfs:/i18n/en.json (mode: 0x1)
+[03:28:50] -> [FS] creating directory: /config/hats-tools/themes
+[03:28:50] -> [FS] opened file: romfs:/i18n/en.json
+[03:28:50] -> [FS] creating directory: /config/hats-tools/github
+[03:28:50] -> [FS] closing stdio file
+[03:28:50] -> [FS] creating directory: /config/hats-tools/i18n
+[03:28:50] -> opened json: romfs:/i18n/en.json
+[03:28:50] -> [FS] creating directory: /config/hats-tools/mount
+[03:28:50] -> 	[i18n init] time taken: 0.04s 43.73ms
+[03:28:50] -> 	[config directory init] time taken: 0.05s 47.03ms
+[03:28:50] -> [FS] deleting directory recursively: /switch/hats-tools/cache/themezer
+[03:28:50] -> [FS] deleting file: /switch/hats-tools/cache/cache.json
+[03:28:50] -> 	[nvg init] time taken: 0.02s 20.65ms
+[03:28:50] -> 	[old cache delete] time taken: 0.01s 13.62ms
+[03:28:50] -> 	[font init] time taken: 0.00s 1.13ms
+[03:28:50] -> [version] platform: NX
+[03:28:50] -> 	[hook init] time taken: 0.00s 0.00ms
+[03:28:50] -> [version] version_hash: f6b2425b6888a66590db104fc734891696e0ecb3
+[03:28:50] -> 	[load default image] time taken: 0.00s 1.34ms
+[03:28:50] -> [version] display_version: 21.0.0
+[03:28:50] -> [version] display_title: NintendoSDK Firmware for NX 21.0.0-5.0
+[03:28:50] -> [ams] version: 1.10.1
+[03:28:50] -> [ams] target version: 21.0.0
+[03:28:50] -> [ams] key gen: 20
+[03:28:50] -> [ams] hash: 21c0f75a29863562
+[03:28:50] -> 	[audio sound effect load] time taken: 0.02s 20.29ms
+[03:28:50] -> [ams] usb 3.0 enabled: 1
+[03:28:50] -> 	[audio init] time taken: 0.04s 38.36ms
+[03:28:50] -> 	[fw log init] time taken: 0.06s 58.59ms
+[03:28:50] -> loaded meta from: romfs:/themes/abyss_theme.ini
+[03:28:50] -> [emummc] enabled: 0
+[03:28:50] -> loaded meta from: romfs:/themes/black_theme.ini
+[03:28:50] -> 	[emummc detect init] time taken: 0.01s 7.17ms
+[03:28:50] -> loaded meta from: romfs:/themes/black_theme_sp_icons.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 16
+[03:28:50] -> loaded meta from: romfs:/themes/default_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 17
+[03:28:50] -> loaded meta from: romfs:/themes/oled_black_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 18
+[03:28:50] -> loaded meta from: romfs:/themes/white_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 19
+[03:28:50] -> loaded meta from: romfs:/themes/default_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 20
+[03:28:50] -> loading theme from: romfs:/themes/default_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 21
+[03:28:50] -> inherit is not empty: romfs:/themes/base_black_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 22
+[03:28:50] -> opened ini: romfs:/themes/base_black_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 23
+[03:28:50] -> opened ini: romfs:/themes/default_theme.ini
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 24
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 25
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 26
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 27
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 28
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 29
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 30
+[03:28:50] -> [FS] opening file: /config/hats-tools/themes/default_music.bfstm (mode: 0x1)
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 31
+[03:28:50] -> [MUSIC] destructor CALLED
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 32
+[03:28:50] -> 	[theme init] time taken: 0.12s 118.00ms
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 33
+[03:28:50] -> [DEVOPTAB] Fixing DKP bug at index: 34
+[03:28:50] -> [NXLINK] in nxlink thread func
+[03:28:50] -> 	[nxlink init] time taken: 0.00s 0.04ms
+[03:28:50] -> 	[hdd init] time taken: 0.00s 1.22ms
+[03:28:50] -> 	[usbdvd init] time taken: 0.00s 0.02ms
+[03:28:50] -> curl_share_setopt(CURLSHOPT_SHARE, CURL_LOCK_DATA_PSL) msg: Feature not enabled in this library
+[03:28:50] -> finished creating threads
+[03:28:50] -> loading old json doc
+[03:28:50] -> 	[curl init] time taken: 0.01s 11.18ms
+[03:28:50] -> [ETAG] init: 1
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> [ETAG] init: 2
+[03:28:50] -> 	[vfs init] time taken: 0.01s 8.28ms
+[03:28:50] -> [ETAG] init: 3
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> [ETAG] init: 4
+[03:28:50] -> 	[http init] time taken: 0.01s 6.92ms
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> 	[webdav init] time taken: 0.00s 3.66ms
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> 	[ftp init] time taken: 0.00s 3.51ms
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> 	[nfs init] time taken: 0.00s 3.50ms
+[03:28:50] -> [DEVOPTAB] Found 0 mount configs
+[03:28:50] -> 	[smb init] time taken: 0.00s 3.59ms
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS games games:/
+[03:28:50] -> [DEVOPTAB] Mounted games at /games:/
+[03:28:50] -> 	[game init] time taken: 0.01s 7.00ms
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS PRODINFOF PRODINFOF:/
+[03:28:50] -> [DEVOPTAB] Mounted PRODINFOF at /PRODINFOF:/
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS SAFE SAFE:/
+[03:28:50] -> [DEVOPTAB] Mounted SAFE at /SAFE:/
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS USER USER:/
+[03:28:50] -> [DEVOPTAB] Mounted USER at /USER:/
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS SYSTEM SYSTEM:/
+[03:28:50] -> [DEVOPTAB] Mounted SYSTEM at /SYSTEM:/
+[03:28:50] -> 	[fatfs init] time taken: 0.03s 28.04ms
+[03:28:50] -> [DEVOPTAB] DEVICE SUCCESS mounts mounts:/
+[03:28:50] -> [DEVOPTAB] Mounted mounts at /mounts:/
+[03:28:50] -> 	[mounts init] time taken: 0.01s 7.06ms
+[03:28:50] -> 	[timestamp init] time taken: 0.00s 0.00ms
+[03:28:50] -> 	[HID init] time taken: 0.00s 0.50ms
+[03:28:50] -> launching from unknown forwader: nx-hbloader v2.4.5 size: 129
+[03:28:50] -> 	[loader init] time taken: 0.00s 3.47ms
+[03:28:50] -> 	[App async load] time taken: 0.43s 432.84ms
+[03:28:50] -> 	[App Constructor] time taken: 0.46s 456.37ms
+[03:28:50] -> 	failed to find key: [Exit]
+[03:28:50] -> [APP] pushing widget
+[03:28:50] -> doing focus gained
+[03:28:50] -> did it
+[03:28:53] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:28:53] -> [APP] pushing widget
+[03:28:53] -> doing focus gained
+[03:28:53] -> did it
+[03:28:53] -> [thread queue] woke up
+[03:28:53] -> [CURL] encoding url
+[03:28:53] -> [CURL] setting url
+[03:28:53] -> [CURL] set url success
+[03:28:53] -> [CURL] encoded url: https://api.github.com/repos/sthetix/HATS/releases?per_page=5 [vs]: https://api.github.com/repos/sthetix/HATS/releases?per_page=5
+[03:28:53] -> [FS] creating directory: /switch/hats-tools/cache
+[03:28:53] -> [FS] creating file: /switch/hats-tools/cache/download_temp0 (size: 0)
+[03:28:53] -> [FS] created file: /switch/hats-tools/cache/download_temp0
+[03:28:53] -> [FS] opening file: /switch/hats-tools/cache/download_temp0 (mode: 0x6)
+[03:28:53] -> [FS] opened file: /switch/hats-tools/cache/download_temp0
+[03:28:53] -> adding header: if-none-match: W/"8eda943fa06187b3d0a2d253de95b44bec22c140c68041c8c2d0ae6c00bf59a4"
+[03:28:53] -> adding header: Accept: application/vnd.github+json
+[03:28:53] -> [FS] deleting file: /switch/hats-tools/cache/download_temp0
+[03:28:53] -> [FS] deleted file: /switch/hats-tools/cache/download_temp0
+[03:28:53] -> Downloaded https://api.github.com/repos/sthetix/HATS/releases?per_page=5 code: 0 Couldn't resolve host name
+[03:28:53] -> [thread queue] woke up
+[03:28:53] -> [DownloadEventData] got event
+[03:28:53] -> hats: failed to fetch releases
+[03:28:53] -> event loop timed-out
+[03:28:55] -> popping widget
+[03:28:56] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:28:56] -> [APP] pushing widget
+[03:28:56] -> doing focus gained
+[03:28:56] -> did it
+[03:28:56] -> [thread queue] woke up
+[03:28:56] -> [CURL] encoding url
+[03:28:56] -> [CURL] setting url
+[03:28:56] -> [CURL] set url success
+[03:28:56] -> [CURL] encoded url: https://api.github.com/repos/sthetix/HATS/releases?per_page=5 [vs]: https://api.github.com/repos/sthetix/HATS/releases?per_page=5
+[03:28:56] -> [FS] creating directory: /switch/hats-tools/cache
+[03:28:56] -> [FS] creating file: /switch/hats-tools/cache/download_temp1 (size: 0)
+[03:28:56] -> [FS] created file: /switch/hats-tools/cache/download_temp1
+[03:28:56] -> [FS] opening file: /switch/hats-tools/cache/download_temp1 (mode: 0x6)
+[03:28:56] -> [FS] opened file: /switch/hats-tools/cache/download_temp1
+[03:28:56] -> adding header: if-none-match: W/"8eda943fa06187b3d0a2d253de95b44bec22c140c68041c8c2d0ae6c00bf59a4"
+[03:28:56] -> adding header: Accept: application/vnd.github+json
+[03:28:56] -> un-cached download: https://api.github.com/repos/sthetix/HATS/releases?per_page=5 code: 200
+[03:28:56] -> updating etag, path: /switch/hats-tools/cache/hats/releases.json key: 3424141283
+[03:28:56] -> [FS] deleting file: /switch/hats-tools/cache/hats/releases.json
+[03:28:56] -> [FS] deleted file: /switch/hats-tools/cache/hats/releases.json
+[03:28:56] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:28:56] -> [FS] renaming file: /switch/hats-tools/cache/download_temp1 -> /switch/hats-tools/cache/hats/releases.json
+[03:28:56] -> [FS] renamed file: /switch/hats-tools/cache/download_temp1 -> /switch/hats-tools/cache/hats/releases.json
+[03:28:56] -> [FS] deleting file: /switch/hats-tools/cache/download_temp1
+[03:28:56] -> Downloaded https://api.github.com/repos/sthetix/HATS/releases?per_page=5 code: 200 No error
+[03:28:56] -> [thread queue] woke up
+[03:28:56] -> [DownloadEventData] got event
+[03:28:56] -> hats: loaded 5 releases
+[03:28:56] -> event loop timed-out
+[03:28:57] -> 	failed to find key: [Cancel]
+[03:28:57] -> [APP] pushing widget
+[03:28:57] -> doing focus gained
+[03:28:57] -> did it
+[03:28:59] -> popping widget
+[03:28:59] -> [APP] pushing widget
+[03:28:59] -> doing focus gained
+[03:28:59] -> did it
+[03:29:00] -> 	failed to find key: [Installing]
+[03:29:00] -> [APP] pushing widget
+[03:29:00] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:29:00] -> doing focus gained
+[03:29:00] -> [FS] deleting file: /switch/hats-tools/cache/hats/download.zip
+[03:29:00] -> did it
+[03:29:00] -> hats: downloading https://github.com/sthetix/HATS/releases/download/HATS-13122025-fad2d63/HATS-13122025-fad2d63.zip
+[03:29:00] -> [CURL] encoding url
+[03:29:00] -> [CURL] setting url
+[03:29:00] -> [CURL] set url success
+[03:29:00] -> [CURL] encoded url: https://github.com/sthetix/HATS/releases/download/HATS-13122025-fad2d63/HATS-13122025-fad2d63.zip [vs]: https://github.com/sthetix/HATS/releases/download/HATS-13122025-fad2d63/HATS-13122025-fad2d63.zip
+[03:29:00] -> [FS] creating directory: /switch/hats-tools/cache
+[03:29:00] -> [FS] creating file: /switch/hats-tools/cache/download_temp2 (size: 0)
+[03:29:00] -> [FS] created file: /switch/hats-tools/cache/download_temp2
+[03:29:00] -> [FS] opening file: /switch/hats-tools/cache/download_temp2 (mode: 0x6)
+[03:29:00] -> [FS] opened file: /switch/hats-tools/cache/download_temp2
+[03:31:09] -> un-cached download: https://github.com/sthetix/HATS/releases/download/HATS-13122025-fad2d63/HATS-13122025-fad2d63.zip code: 200
+[03:31:09] -> [FS] deleting file: /switch/hats-tools/cache/hats/download.zip
+[03:31:09] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:31:09] -> [FS] renaming file: /switch/hats-tools/cache/download_temp2 -> /switch/hats-tools/cache/hats/download.zip
+[03:31:09] -> [FS] renamed file: /switch/hats-tools/cache/download_temp2 -> /switch/hats-tools/cache/hats/download.zip
+[03:31:09] -> [FS] deleting file: /switch/hats-tools/cache/download_temp2
+[03:31:09] -> Downloaded https://github.com/sthetix/HATS/releases/download/HATS-13122025-fad2d63/HATS-13122025-fad2d63.zip code: 200 No error
+[03:31:09] -> hats: extracting directly to SD root
+[03:31:09] -> hats: download file exists before extraction: yes
+[03:31:09] -> [ZIP] opening zip: /switch/hats-tools/cache/hats/download.zip to /
+[03:31:09] -> [ZIP] starting unzip all: 451 entries
+[03:31:09] -> hats: extracting file: atmosphere/ -> /atmosphere/
+[03:31:09] -> [FS] creating directory: /atmosphere/
+[03:31:09] -> hats: extracting file: boot.dat -> /boot.dat
+[03:31:09] -> [ZIP] extracting: /boot.dat (size: 11520)
+[03:31:09] -> [FS] creating file: /boot.dat (size: 11520)
+[03:31:09] -> [FS] opening file: /boot.dat (mode: 0x2)
+[03:31:09] -> [FS] opened file: /boot.dat
+[03:31:09] -> [TRANSFER] starting transfer (size: 11520, mode: 2, buffer: 524288)
+[03:31:09] -> [TRANSFER] using single-threaded mode
+[03:31:09] -> [TRANSFER] completed single-threaded transfer
+[03:31:09] -> [ZIP] extracted: /boot.dat
+[03:31:09] -> hats: extracting file: boot.ini -> /boot.ini
+[03:31:09] -> [ZIP] extracting: /boot.ini (size: 29)
+[03:31:09] -> [FS] creating file: /boot.ini (size: 29)
+[03:31:09] -> [FS] opening file: /boot.ini (mode: 0x2)
+[03:31:09] -> [FS] opened file: /boot.ini
+[03:31:09] -> [TRANSFER] starting transfer (size: 29, mode: 2, buffer: 524288)
+[03:31:09] -> [TRANSFER] using single-threaded mode
+[03:31:09] -> [TRANSFER] completed single-threaded transfer
+[03:31:09] -> [ZIP] extracted: /boot.ini
+[03:31:09] -> hats: extracting file: bootloader/ -> /bootloader/
+[03:31:09] -> [FS] creating directory: /bootloader/
+[03:31:09] -> hats: extracting file: config/ -> /config/
+[03:31:09] -> [FS] creating directory: /config/
+[03:31:09] -> hats: extracting file: exosphere.ini -> /exosphere.ini
+[03:31:09] -> [ZIP] extracting: /exosphere.ini (size: 238)
+[03:31:09] -> [FS] creating file: /exosphere.ini (size: 238)
+[03:31:09] -> [FS] opening file: /exosphere.ini (mode: 0x2)
+[03:31:09] -> [FS] opened file: /exosphere.ini
+[03:31:09] -> [TRANSFER] starting transfer (size: 238, mode: 2, buffer: 524288)
+[03:31:09] -> [TRANSFER] using single-threaded mode
+[03:31:09] -> [TRANSFER] completed single-threaded transfer
+[03:31:09] -> [ZIP] extracted: /exosphere.ini
+[03:31:09] -> hats: extracting file: HATS-13122025-fad2d63.txt -> /HATS-13122025-fad2d63.txt
+[03:31:09] -> [ZIP] extracting: /HATS-13122025-fad2d63.txt (size: 2179)
+[03:31:09] -> [FS] creating file: /HATS-13122025-fad2d63.txt (size: 2179)
+[03:31:09] -> [FS] created file: /HATS-13122025-fad2d63.txt
+[03:31:09] -> [FS] opening file: /HATS-13122025-fad2d63.txt (mode: 0x2)
+[03:31:09] -> [FS] opened file: /HATS-13122025-fad2d63.txt
+[03:31:09] -> [TRANSFER] starting transfer (size: 2179, mode: 2, buffer: 524288)
+[03:31:09] -> [TRANSFER] using single-threaded mode
+[03:31:09] -> [TRANSFER] completed single-threaded transfer
+[03:31:09] -> [ZIP] extracted: /HATS-13122025-fad2d63.txt
+[03:31:09] -> hats: extracting file: hbmenu.nro -> /hbmenu.nro
+[03:31:09] -> [ZIP] extracting: /hbmenu.nro (size: 2455539)
+[03:31:09] -> [FS] creating file: /hbmenu.nro (size: 2455539)
+[03:31:09] -> [FS] opening file: /hbmenu.nro (mode: 0x2)
+[03:31:09] -> [FS] opened file: /hbmenu.nro
+[03:31:09] -> [TRANSFER] starting transfer (size: 2455539, mode: 2, buffer: 524288)
+[03:31:09] -> [TRANSFER] doing normal multi-threaded transfer
+[03:31:09] -> [TRANSFER] starting threads
+[03:31:09] -> [TRANSFER] started threads
+[03:31:09] -> hello decomp thread func
+[03:31:09] -> finished read thread success!
+[03:31:09] -> finished decompress thread success!
+[03:31:10] -> read thread returned now
+[03:31:10] -> finished write thread success!
+[03:31:10] -> decompress thread returned now
+[03:31:10] -> write thread returned now
+[03:31:10] -> [TRANSFER] waiting for threads to close
+[03:31:10] -> [TRANSFER] threads closed
+[03:31:10] -> [TRANSFER] completed successfully
+[03:31:10] -> [ZIP] extracted: /hbmenu.nro
+[03:31:10] -> hats: extracting file: manifest.json -> /manifest.json
+[03:31:10] -> [ZIP] extracting: /manifest.json (size: 41168)
+[03:31:10] -> [FS] creating file: /manifest.json (size: 41168)
+[03:31:10] -> [FS] opening file: /manifest.json (mode: 0x2)
+[03:31:10] -> [FS] opened file: /manifest.json
+[03:31:10] -> [TRANSFER] starting transfer (size: 41168, mode: 2, buffer: 524288)
+[03:31:10] -> [TRANSFER] using single-threaded mode
+[03:31:10] -> [TRANSFER] completed single-threaded transfer
+[03:31:10] -> [ZIP] extracted: /manifest.json
+[03:31:10] -> hats: extracting file: payload.bin -> /payload.bin
+[03:31:10] -> [ZIP] extracting: /payload.bin (size: 110852)
+[03:31:10] -> [FS] creating file: /payload.bin (size: 110852)
+[03:31:10] -> [FS] opening file: /payload.bin (mode: 0x2)
+[03:31:10] -> [FS] opened file: /payload.bin
+[03:31:10] -> [TRANSFER] starting transfer (size: 110852, mode: 2, buffer: 524288)
+[03:31:10] -> [TRANSFER] using single-threaded mode
+[03:31:10] -> [TRANSFER] completed single-threaded transfer
+[03:31:10] -> [ZIP] extracted: /payload.bin
+[03:31:10] -> hats: extracting file: scripts/ -> /scripts/
+[03:31:10] -> [FS] creating directory: /scripts/
+[03:31:10] -> hats: extracting file: switch/ -> /switch/
+[03:31:10] -> [FS] creating directory: /switch/
+[03:31:10] -> hats: extracting file: atmosphere/config/ -> /atmosphere/config/
+[03:31:10] -> [FS] creating directory: /atmosphere/config/
+[03:31:10] -> hats: extracting file: atmosphere/config_templates/ -> /atmosphere/config_templates/
+[03:31:10] -> [FS] creating directory: /atmosphere/config_templates/
+[03:31:10] -> hats: extracting file: atmosphere/contents/ -> /atmosphere/contents/
+[03:31:10] -> [FS] creating directory: /atmosphere/contents/
+[03:31:10] -> hats: extracting file: atmosphere/exefs_patches/ -> /atmosphere/exefs_patches/
+[03:31:10] -> [FS] creating directory: /atmosphere/exefs_patches/
+[03:31:10] -> hats: extracting file: atmosphere/fatal_errors/ -> /atmosphere/fatal_errors/
+[03:31:10] -> [FS] creating directory: /atmosphere/fatal_errors/
+[03:31:10] -> hats: extracting file: atmosphere/flags/ -> /atmosphere/flags/
+[03:31:10] -> [FS] creating directory: /atmosphere/flags/
+[03:31:10] -> hats: extracting file: atmosphere/hbl.nsp -> /atmosphere/hbl.nsp
+[03:31:10] -> [ZIP] extracting: /atmosphere/hbl.nsp (size: 40946)
+[03:31:10] -> [FS] creating directory: /atmosphere
+[03:31:10] -> [FS] creating file: /atmosphere/hbl.nsp (size: 40946)
+[03:31:10] -> [FS] opening file: /atmosphere/hbl.nsp (mode: 0x2)
+[03:31:10] -> [FS] opened file: /atmosphere/hbl.nsp
+[03:31:10] -> [TRANSFER] starting transfer (size: 40946, mode: 2, buffer: 524288)
+[03:31:10] -> [TRANSFER] using single-threaded mode
+[03:31:10] -> [TRANSFER] completed single-threaded transfer
+[03:31:10] -> [ZIP] extracted: /atmosphere/hbl.nsp
+[03:31:10] -> hats: extracting file: atmosphere/hbl_html/ -> /atmosphere/hbl_html/
+[03:31:10] -> [FS] creating directory: /atmosphere/hbl_html/
+[03:31:10] -> hats: extracting file: atmosphere/hosts/ -> /atmosphere/hosts/
+[03:31:10] -> [FS] creating directory: /atmosphere/hosts/
+[03:31:10] -> hats: extracting file: atmosphere/kip_patches/ -> /atmosphere/kip_patches/
+[03:31:10] -> [FS] creating directory: /atmosphere/kip_patches/
+[03:31:10] -> hats: extracting file: atmosphere/package3 -> /atmosphere/package3
+[03:31:10] -> [ZIP] extracting: /atmosphere/package3 (size: 8388608)
+[03:31:10] -> [FS] creating directory: /atmosphere
+[03:31:10] -> [FS] creating file: /atmosphere/package3 (size: 8388608)
+[03:31:10] -> [FS] opening file: /atmosphere/package3 (mode: 0x2)
+[03:31:10] -> hats: extraction completed with result: 0xE02
+[03:31:10] -> hats: extraction failed with error: 0xE02
+[03:31:10] -> popping widget
+[03:31:10] -> [ERROR] Failed to install HATS-13122025-fad2d63
+[03:31:10] -> [ERROR] Code: 0xE02 Module: 2 (Fs) Description: 7
+[03:31:10] -> [APP] pushing widget
+[03:31:10] -> doing focus gained
+[03:31:10] -> did it
+[03:31:51] -> popping widget
+[03:31:51] -> popping widget
+[03:32:27] -> [APP] pushing widget
+[03:32:27] -> doing focus gained
+[03:32:27] -> did it
+[03:32:28] -> [APP] pushing widget
+[03:32:28] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:32:28] -> doing focus gained
+[03:32:28] -> [FS] deleting file: /switch/hats-tools/cache/hats/download.zip
+[03:32:28] -> did it
+[03:32:28] -> [FS] deleted file: /switch/hats-tools/cache/hats/download.zip
+[03:32:28] -> hats: downloading https://github.com/sthetix/HATS/releases/download/HATS-09122025-0b62ff4/HATS-09122025-0b62ff4.zip
+[03:32:28] -> [CURL] encoding url
+[03:32:28] -> [CURL] setting url
+[03:32:28] -> [CURL] set url success
+[03:32:28] -> [CURL] encoded url: https://github.com/sthetix/HATS/releases/download/HATS-09122025-0b62ff4/HATS-09122025-0b62ff4.zip [vs]: https://github.com/sthetix/HATS/releases/download/HATS-09122025-0b62ff4/HATS-09122025-0b62ff4.zip
+[03:32:28] -> [FS] creating directory: /switch/hats-tools/cache
+[03:32:28] -> [FS] creating file: /switch/hats-tools/cache/download_temp3 (size: 0)
+[03:32:28] -> [FS] created file: /switch/hats-tools/cache/download_temp3
+[03:32:28] -> [FS] opening file: /switch/hats-tools/cache/download_temp3 (mode: 0x6)
+[03:32:28] -> [FS] opened file: /switch/hats-tools/cache/download_temp3
+[03:33:13] -> un-cached download: https://github.com/sthetix/HATS/releases/download/HATS-09122025-0b62ff4/HATS-09122025-0b62ff4.zip code: 200
+[03:33:13] -> [FS] deleting file: /switch/hats-tools/cache/hats/download.zip
+[03:33:13] -> [FS] creating directory: /switch/hats-tools/cache/hats
+[03:33:13] -> [FS] renaming file: /switch/hats-tools/cache/download_temp3 -> /switch/hats-tools/cache/hats/download.zip
+[03:33:13] -> [FS] renamed file: /switch/hats-tools/cache/download_temp3 -> /switch/hats-tools/cache/hats/download.zip
+[03:33:13] -> [FS] deleting file: /switch/hats-tools/cache/download_temp3
+[03:33:13] -> Downloaded https://github.com/sthetix/HATS/releases/download/HATS-09122025-0b62ff4/HATS-09122025-0b62ff4.zip code: 200 No error
+[03:33:13] -> hats: extracting directly to SD root
+[03:33:13] -> hats: download file exists before extraction: yes
+[03:33:13] -> [ZIP] opening zip: /switch/hats-tools/cache/hats/download.zip to /
+[03:33:13] -> [ZIP] starting unzip all: 449 entries
+[03:33:13] -> hats: extracting file: atmosphere/ -> /atmosphere/
+[03:33:13] -> [FS] creating directory: /atmosphere/
+[03:33:13] -> hats: extracting file: boot.dat -> /boot.dat
+[03:33:13] -> [ZIP] extracting: /boot.dat (size: 11520)
+[03:33:13] -> [FS] creating file: /boot.dat (size: 11520)
+[03:33:13] -> [FS] opening file: /boot.dat (mode: 0x2)
+[03:33:13] -> [FS] opened file: /boot.dat
+[03:33:13] -> [TRANSFER] starting transfer (size: 11520, mode: 2, buffer: 524288)
+[03:33:13] -> [TRANSFER] using single-threaded mode
+[03:33:13] -> [TRANSFER] completed single-threaded transfer
+[03:33:13] -> [ZIP] extracted: /boot.dat
+[03:33:13] -> hats: extracting file: boot.ini -> /boot.ini
+[03:33:13] -> [ZIP] extracting: /boot.ini (size: 29)
+[03:33:13] -> [FS] creating file: /boot.ini (size: 29)
+[03:33:13] -> [FS] opening file: /boot.ini (mode: 0x2)
+[03:33:13] -> [FS] opened file: /boot.ini
+[03:33:13] -> [TRANSFER] starting transfer (size: 29, mode: 2, buffer: 524288)
+[03:33:13] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /boot.ini
+[03:33:14] -> hats: extracting file: bootloader/ -> /bootloader/
+[03:33:14] -> [FS] creating directory: /bootloader/
+[03:33:14] -> hats: extracting file: config/ -> /config/
+[03:33:14] -> [FS] creating directory: /config/
+[03:33:14] -> hats: extracting file: exosphere.ini -> /exosphere.ini
+[03:33:14] -> [ZIP] extracting: /exosphere.ini (size: 238)
+[03:33:14] -> [FS] creating file: /exosphere.ini (size: 238)
+[03:33:14] -> [FS] opening file: /exosphere.ini (mode: 0x2)
+[03:33:14] -> [FS] opened file: /exosphere.ini
+[03:33:14] -> [TRANSFER] starting transfer (size: 238, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /exosphere.ini
+[03:33:14] -> hats: extracting file: HATS-09122025-0b62ff4.txt -> /HATS-09122025-0b62ff4.txt
+[03:33:14] -> [ZIP] extracting: /HATS-09122025-0b62ff4.txt (size: 2193)
+[03:33:14] -> [FS] creating file: /HATS-09122025-0b62ff4.txt (size: 2193)
+[03:33:14] -> [FS] created file: /HATS-09122025-0b62ff4.txt
+[03:33:14] -> [FS] opening file: /HATS-09122025-0b62ff4.txt (mode: 0x2)
+[03:33:14] -> [FS] opened file: /HATS-09122025-0b62ff4.txt
+[03:33:14] -> [TRANSFER] starting transfer (size: 2193, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /HATS-09122025-0b62ff4.txt
+[03:33:14] -> hats: extracting file: hbmenu.nro -> /hbmenu.nro
+[03:33:14] -> [ZIP] extracting: /hbmenu.nro (size: 2455539)
+[03:33:14] -> [FS] creating file: /hbmenu.nro (size: 2455539)
+[03:33:14] -> [FS] opening file: /hbmenu.nro (mode: 0x2)
+[03:33:14] -> [FS] opened file: /hbmenu.nro
+[03:33:14] -> [TRANSFER] starting transfer (size: 2455539, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] doing normal multi-threaded transfer
+[03:33:14] -> [TRANSFER] starting threads
+[03:33:14] -> [TRANSFER] started threads
+[03:33:14] -> hello decomp thread func
+[03:33:14] -> finished read thread success!
+[03:33:14] -> finished decompress thread success!
+[03:33:14] -> read thread returned now
+[03:33:14] -> finished write thread success!
+[03:33:14] -> decompress thread returned now
+[03:33:14] -> write thread returned now
+[03:33:14] -> [TRANSFER] waiting for threads to close
+[03:33:14] -> [TRANSFER] threads closed
+[03:33:14] -> [TRANSFER] completed successfully
+[03:33:14] -> [ZIP] extracted: /hbmenu.nro
+[03:33:14] -> hats: extracting file: info.json -> /info.json
+[03:33:14] -> [ZIP] extracting: /info.json (size: 921)
+[03:33:14] -> [FS] creating file: /info.json (size: 921)
+[03:33:14] -> [FS] created file: /info.json
+[03:33:14] -> [FS] opening file: /info.json (mode: 0x2)
+[03:33:14] -> [FS] opened file: /info.json
+[03:33:14] -> [TRANSFER] starting transfer (size: 921, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /info.json
+[03:33:14] -> hats: extracting file: manifest.install -> /manifest.install
+[03:33:14] -> [ZIP] extracting: /manifest.install (size: 41)
+[03:33:14] -> [FS] creating file: /manifest.install (size: 41)
+[03:33:14] -> [FS] created file: /manifest.install
+[03:33:14] -> [FS] opening file: /manifest.install (mode: 0x2)
+[03:33:14] -> [FS] opened file: /manifest.install
+[03:33:14] -> [TRANSFER] starting transfer (size: 41, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /manifest.install
+[03:33:14] -> hats: extracting file: manifest.json -> /manifest.json
+[03:33:14] -> [ZIP] extracting: /manifest.json (size: 40772)
+[03:33:14] -> [FS] creating file: /manifest.json (size: 40772)
+[03:33:14] -> [FS] opening file: /manifest.json (mode: 0x2)
+[03:33:14] -> [FS] opened file: /manifest.json
+[03:33:14] -> [TRANSFER] starting transfer (size: 40772, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /manifest.json
+[03:33:14] -> hats: extracting file: payload.bin -> /payload.bin
+[03:33:14] -> [ZIP] extracting: /payload.bin (size: 110852)
+[03:33:14] -> [FS] creating file: /payload.bin (size: 110852)
+[03:33:14] -> [FS] opening file: /payload.bin (mode: 0x2)
+[03:33:14] -> [FS] opened file: /payload.bin
+[03:33:14] -> [TRANSFER] starting transfer (size: 110852, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /payload.bin
+[03:33:14] -> hats: extracting file: scripts/ -> /scripts/
+[03:33:14] -> [FS] creating directory: /scripts/
+[03:33:14] -> hats: extracting file: switch/ -> /switch/
+[03:33:14] -> [FS] creating directory: /switch/
+[03:33:14] -> hats: extracting file: atmosphere/config/ -> /atmosphere/config/
+[03:33:14] -> [FS] creating directory: /atmosphere/config/
+[03:33:14] -> hats: extracting file: atmosphere/config_templates/ -> /atmosphere/config_templates/
+[03:33:14] -> [FS] creating directory: /atmosphere/config_templates/
+[03:33:14] -> hats: extracting file: atmosphere/contents/ -> /atmosphere/contents/
+[03:33:14] -> [FS] creating directory: /atmosphere/contents/
+[03:33:14] -> hats: extracting file: atmosphere/exefs_patches/ -> /atmosphere/exefs_patches/
+[03:33:14] -> [FS] creating directory: /atmosphere/exefs_patches/
+[03:33:14] -> hats: extracting file: atmosphere/fatal_errors/ -> /atmosphere/fatal_errors/
+[03:33:14] -> [FS] creating directory: /atmosphere/fatal_errors/
+[03:33:14] -> hats: extracting file: atmosphere/flags/ -> /atmosphere/flags/
+[03:33:14] -> [FS] creating directory: /atmosphere/flags/
+[03:33:14] -> hats: extracting file: atmosphere/hbl.nsp -> /atmosphere/hbl.nsp
+[03:33:14] -> [ZIP] extracting: /atmosphere/hbl.nsp (size: 40946)
+[03:33:14] -> [FS] creating directory: /atmosphere
+[03:33:14] -> [FS] creating file: /atmosphere/hbl.nsp (size: 40946)
+[03:33:14] -> [FS] opening file: /atmosphere/hbl.nsp (mode: 0x2)
+[03:33:14] -> [FS] opened file: /atmosphere/hbl.nsp
+[03:33:14] -> [TRANSFER] starting transfer (size: 40946, mode: 2, buffer: 524288)
+[03:33:14] -> [TRANSFER] using single-threaded mode
+[03:33:14] -> [TRANSFER] completed single-threaded transfer
+[03:33:14] -> [ZIP] extracted: /atmosphere/hbl.nsp
+[03:33:14] -> hats: extracting file: atmosphere/hbl_html/ -> /atmosphere/hbl_html/
+[03:33:14] -> [FS] creating directory: /atmosphere/hbl_html/
+[03:33:15] -> hats: extracting file: atmosphere/hosts/ -> /atmosphere/hosts/
+[03:33:15] -> [FS] creating directory: /atmosphere/hosts/
+[03:33:15] -> hats: extracting file: atmosphere/kip_patches/ -> /atmosphere/kip_patches/
+[03:33:15] -> [FS] creating directory: /atmosphere/kip_patches/
+[03:33:15] -> hats: extracting file: atmosphere/package3 -> /atmosphere/package3
+[03:33:15] -> [ZIP] extracting: /atmosphere/package3 (size: 8388608)
+[03:33:15] -> [FS] creating directory: /atmosphere
+[03:33:15] -> [FS] creating file: /atmosphere/package3 (size: 8388608)
+[03:33:15] -> [FS] opening file: /atmosphere/package3 (mode: 0x2)
+[03:33:15] -> hats: extraction completed with result: 0xE02
+[03:33:15] -> hats: extraction failed with error: 0xE02
+[03:33:15] -> popping widget
+[03:33:15] -> [ERROR] Failed to install HATS-09122025-0b62ff4
+[03:33:15] -> [ERROR] Code: 0xE02 Module: 2 (Fs) Description: 7
+[03:33:15] -> [APP] pushing widget
+[03:33:15] -> doing focus gained
+[03:33:15] -> did it
+[03:33:18] -> popping widget
+[03:33:18] -> popping widget
+[03:33:24] -> [APPLET] AppletHookType_OnExitRequest
+[03:33:24] -> starting to exit
+[03:33:24] -> [AUDIO] failed to wait for event
+[03:33:24] -> 	[async signal] time taken: 0.00s 0.03ms
+[03:33:24] -> [thread queue] woke up
+[03:33:24] -> 	[widget exit] time taken: 0.00s 0.04ms
+[03:33:24] -> exited download thread
+[03:33:24] -> 	[theme exit] time taken: 0.00s 2.36ms
+[03:33:24] -> exited download thread
+[03:33:24] -> exited download thread
+[03:33:24] -> exited download thread
+[03:33:24] -> 	[destroy frame buffer resources] time taken: 0.01s 10.90ms
+[03:33:24] -> 	[i18n_exit] time taken: 0.00s 0.00ms
+[03:33:24] -> 	[nvg exit] time taken: 0.00s 0.03ms
+[03:33:24] -> [ETAG] exit
+[03:33:24] -> 	[nro copy main] time taken: 0.00s 3.32ms
+[03:33:24] -> 	[usbdvd_exit] time taken: 0.00s 0.09ms
+[03:33:24] -> 	[mtp exit] time taken: 0.00s 0.00ms
+[03:33:24] -> 	[hdd exit] time taken: 0.00s 0.14ms
+[03:33:24] -> [DEVOPTAB] Unmounting games:/ URL: 
+[03:33:24] -> [DEVOPTAB] Unmounting PRODINFOF:/ URL: 
+[03:33:24] -> [DEVOPTAB] Unmounting SAFE:/ URL: 
+[03:33:24] -> [DEVOPTAB] Unmounting USER:/ URL: 
+[03:33:24] -> [DEVOPTAB] Unmounting SYSTEM:/ URL: 
+[03:33:24] -> [DEVOPTAB] Unmounting mounts:/ URL: 
+[03:33:24] -> 	[devoptab exit] time taken: 0.02s 20.59ms
+[03:33:24] -> 	[audio_exit] time taken: 0.02s 15.31ms
+[03:33:24] -> 	[ftp exit] time taken: 0.00s 0.00ms
+[03:33:24] -> 	[nxlink exit] time taken: 0.00s 0.03ms
+[03:33:24] -> 	[curl_exit] time taken: 0.00s 1.02ms
+[03:33:24] -> 	[TOTAL EXIT] time taken: 0.15s 148.40ms
+[03:33:24] -> closing log
+=== Log closed ===

@@ -111,29 +111,6 @@ void MenuBase::Draw(NVGcontext* vg, Theme* theme) {
     // ran out of space, its one or the other.
     if (!App::IsApplication()) {
         draw(ThemeEntryID_ERROR, 0, ("[Applet Mode]"_i18n).c_str());
-    } else if (App::GetApp()->m_show_ip_addr.Get()) {
-        if (pdata.ip) {
-            char ip_buf[32];
-            std::snprintf(ip_buf, sizeof(ip_buf), "%u.%u.%u.%u", pdata.ip & 0xFF, (pdata.ip >> 8) & 0xFF, (pdata.ip >> 16) & 0xFF, (pdata.ip >> 24) & 0xFF);
-            gfx::textBounds(vg, 0, 0, bounds, ip_buf);
-
-            char type_buf[32];
-            if (pdata.type == NifmInternetConnectionType_WiFi) {
-                std::snprintf(type_buf, sizeof(type_buf), "Wi-Fi %.0f%%"_i18n.c_str(), ((float)pdata.strength / 3.F) * 100);
-            } else if (pdata.type == NifmInternetConnectionType_Ethernet) {
-                std::snprintf(type_buf, sizeof(type_buf), "Ethernet"_i18n.c_str());
-            } else {
-                std::snprintf(type_buf, sizeof(type_buf), "Unknown"_i18n.c_str());
-            }
-
-            const auto ip_x = start_x;
-            const auto ip_w = bounds[2] - bounds[0];
-            const auto type_x = ip_x - ip_w / 2;
-            gfx::drawTextArgs(vg, type_x, start_y - 25, storage_font - 1, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT_INFO), "%s", type_buf);
-            gfx::drawTextArgs(vg, ip_x, start_y, storage_font, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT), "%s", ip_buf);
-        } else {
-            draw(ThemeEntryID_TEXT, 0, ("No Internet"_i18n).c_str());
-        }
     }
 
     #undef draw

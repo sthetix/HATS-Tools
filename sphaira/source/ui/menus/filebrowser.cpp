@@ -369,12 +369,12 @@ ForwarderForm::ForwarderForm(const FileAssocEntry& assoc, const RomDatabaseIndex
 
         // if this is a rom, load intro logo.
         if (!m_db_indexs.empty()) {
-            fs::FsNativeSd().read_entire_file("/config/sphaira/logo/rom/NintendoLogo.png", config.logo);
-            fs::FsNativeSd().read_entire_file("/config/sphaira/logo/rom/StartupMovie.gif", config.gif);
+            fs::FsNativeSd().read_entire_file("/config/hats-tools/logo/rom/NintendoLogo.png", config.logo);
+            fs::FsNativeSd().read_entire_file("/config/hats-tools/logo/rom/StartupMovie.gif", config.gif);
         }
 
         // try and install.
-        if (R_FAILED(App::Install(config))) {
+        if (R_FAILED(install_forwarder(config, NcmStorageId_SdCard))) {
             App::Notify("Failed to install forwarder"_i18n);
         } else {
             SetPop();
@@ -858,11 +858,6 @@ void FsView::InstallForwarder() {
 }
 
 void FsView::InstallFiles() {
-    if (!App::GetInstallEnable()) {
-        App::ShowEnableInstallPrompt();
-        return;
-    }
-
     const auto targets = GetSelectedEntries();
 
     App::Push<OptionBox>("Install Selected files?"_i18n, "No"_i18n, "Yes"_i18n, 0, [this, targets](auto op_index){
@@ -968,7 +963,7 @@ void FsView::ZipFiles(fs::FsPath zip_out) {
 
         auto zfile = zipOpen2_64(zip_out, APPEND_STATUS_CREATE, nullptr, &file_func);
         R_UNLESS(zfile, Result_ZipOpen2_64);
-        ON_SCOPE_EXIT(zipClose(zfile, "sphaira v" APP_DISPLAY_VERSION));
+        ON_SCOPE_EXIT(zipClose(zfile, "HATS Tools v" APP_DISPLAY_VERSION));
 
         const auto zip_add = [&](const fs::FsPath& file_path) -> Result {
             // the file name needs to be relative to the current directory.
@@ -1767,19 +1762,17 @@ void FsView::DisplayOptions() {
     if (m_menu->CanInstall()) {
         if (m_entries_current.size()) {
             if (check_all_ext(INSTALL_EXTENSIONS)) {
-                auto entry = options->Add<SidebarEntryCallback>("Install"_i18n, [this](){
+                options->Add<SidebarEntryCallback>("Install"_i18n, [this](){
                     InstallFiles();
                 });
-                entry->Depends(App::GetInstallEnable, i18n::get(App::INSTALL_DEPENDS_STR), App::ShowEnableInstallPrompt);
             }
         }
 
         if (IsSd() && m_entries_current.size() && !m_selected_count) {
             if (GetEntry().IsFile() && (IsSamePath(GetEntry().GetExtension(), "nro") || !m_menu->FindFileAssocFor().empty())) {
-                auto entry = options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){;
+                options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){
                     InstallForwarder();
                 });
-                entry->Depends(App::GetInstallEnable, i18n::get(App::INSTALL_DEPENDS_STR), App::ShowEnableInstallPrompt);
             }
         }
     }
@@ -2181,7 +2174,7 @@ void Base::LoadAssocEntries() {
             romfsExit();
         }
         // then load custom entries
-        LoadAssocEntriesPath("/config/sphaira/assoc/");
+        LoadAssocEntriesPath("/config/hats-tools/assoc/");
     }
 }
 

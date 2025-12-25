@@ -13,8 +13,8 @@ build_preset Release
 rm -rf out
 
 # --- SWITCH --- #
-mkdir -p out/switch/sphaira/
-cp -r build/Release/*.nro out/switch/sphaira/sphaira.nro
+mkdir -p out/switch/hats-tools/
+cp build/Release/hats-tools.nro out/switch/hats-tools/hats-tools.nro
 pushd out
-zip -r9 sphaira.zip switch
+zip -r9 hats-tools.zip switch
 popd

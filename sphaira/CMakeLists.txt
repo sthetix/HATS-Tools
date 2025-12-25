@@ -5,10 +5,10 @@ option(ENABLE_NVJPG "" OFF)
 option(ENABLE_NSZ "enables exporting to nsz" ON)
 
 # lib options.
-option(ENABLE_LIBUSBHSFS "enables FAT/exFAT hdd mounting" ON)
-option(ENABLE_LIBUSBDVD "enables cd/dvd/iso/cue mounting" ON)
-option(ENABLE_FTPSRV "enables MTP server support" ON)
-option(ENABLE_LIBHAZE "enables MTP server support" ON)
+option(ENABLE_LIBUSBHSFS "enables FAT/exFAT hdd mounting" OFF)
+option(ENABLE_LIBUSBDVD "enables cd/dvd/iso/cue mounting" OFF)
+option(ENABLE_FTPSRV "enables MTP server support" OFF)
+option(ENABLE_LIBHAZE "enables MTP server support" OFF)
 
 # audio options.
 option(ENABLE_AUDIO_MP3 "" ON)
@@ -28,9 +28,14 @@ option(ENABLE_DEVOPTAB_WEBDAV "" ON)
 # it also adds 230k to binary size, and i don't think anyone will use it.
 option(ENABLE_DEVOPTAB_SFTP "" OFF)
 
-set(sphaira_VERSION 1.0.0)
+# Semantic Versioning: MAJOR.MINOR.PATCH
+# MAJOR: incompatible changes
+# MINOR: new features (backwards compatible)
+# PATCH: bug fixes (backwards compatible)
+set(HATS_TOOLS_VERSION "1.0.0")
+set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
-project(sphaira
+project(hats-tools
     VERSION ${sphaira_VERSION}
     LANGUAGES C CXX
 )
@@ -58,32 +63,29 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-if (DEFINED sphaira_VERSION_OVERRIDE)
-    set(sphaira_DISPLAY_VERSION "${sphaira_VERSION_OVERRIDE} [${GIT_COMMIT}]")
+if (DEFINED HATS_TOOLS_VERSION_OVERRIDE)
+    set(sphaira_DISPLAY_VERSION "${HATS_TOOLS_VERSION_OVERRIDE} [${GIT_COMMIT}]")
 else()
-    set(sphaira_DISPLAY_VERSION "${sphaira_VERSION} [${GIT_COMMIT}]")
+    set(sphaira_DISPLAY_VERSION "${HATS_TOOLS_VERSION} [${GIT_COMMIT}]")
 endif()
 
-add_executable(sphaira
+add_executable(hats-tools
     source/ui/menus/appstore.cpp
     source/ui/menus/file_viewer.cpp
     source/ui/menus/image_viewer.cpp
     source/ui/menus/filebrowser.cpp
     source/ui/menus/file_picker.cpp
     source/ui/menus/homebrew.cpp
-    source/ui/menus/irs_menu.cpp
     source/ui/menus/main_menu.cpp
     source/ui/menus/menu_base.cpp
-    source/ui/menus/save_menu.cpp
-    source/ui/menus/themezer.cpp
     source/ui/menus/ghdl.cpp
-    source/ui/menus/usb_menu.cpp
-    source/ui/menus/gc_menu.cpp
-    source/ui/menus/game_menu.cpp
-    source/ui/menus/game_meta_menu.cpp
-    source/ui/menus/game_nca_menu.cpp
     source/ui/menus/grid_menu_base.cpp
-    source/ui/menus/install_stream_menu_base.cpp
+
+    # HATS Tools menus
+    source/ui/menus/hats_main_menu.cpp
+    source/ui/menus/hats_pack_menu.cpp
+    source/ui/menus/firmware_menu.cpp
+    source/ui/menus/uninstaller_menu.cpp
 
     source/ui/error_box.cpp
     source/ui/notification.cpp
@@ -109,6 +111,10 @@ add_executable(sphaira
     source/log.cpp
     source/main.cpp
     source/nro.cpp
+
+    # HATS Tools utilities
+    source/hats_version.cpp
+    source/manifest.cpp
     source/nxlink.cpp
     source/owo.cpp
     source/swkbd.cpp
@@ -132,7 +138,6 @@ add_executable(sphaira
     source/utils/devoptab_bfsar.cpp
     source/utils/devoptab_vfs.cpp
     source/utils/devoptab_fatfs.cpp
-    source/utils/devoptab_game.cpp
     source/utils/devoptab_mounts.cpp
     source/utils/devoptab.cpp
 
@@ -161,7 +166,7 @@ add_executable(sphaira
     source/yati/nx/nxdumptool/save.c
 )
 
-target_compile_definitions(sphaira PRIVATE
+target_compile_definitions(hats-tools PRIVATE
     -DAPP_VERSION="${sphaira_VERSION}"
     -DAPP_DISPLAY_VERSION="${sphaira_DISPLAY_VERSION}"
     -DCURL_NO_OLDIES=1
@@ -169,7 +174,7 @@ target_compile_definitions(sphaira PRIVATE
     -DZSTD_STATIC_LINKING_ONLY=1
 )
 
-target_compile_options(sphaira PRIVATE
+target_compile_options(hats-tools PRIVATE
     -Wall
     -Wextra
 
@@ -277,12 +282,12 @@ if (ENABLE_NVJPG)
     set_target_properties(nvjpg PROPERTIES CXX_STANDARD 26)
 
     target_link_libraries(nvjpg PRIVATE nvjpg)
-    target_compile_definitions(sphaira PRIVATE ENABLE_NVJPG)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_NVJPG)
 endif()
 
 if (ENABLE_NSZ)
-    target_sources(sphaira PRIVATE source/utils/nsz_dumper.cpp)
-    target_compile_definitions(sphaira PRIVATE ENABLE_NSZ)
+    target_sources(hats-tools PRIVATE source/utils/nsz_dumper.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_NSZ)
 endif()
 
 if (ENABLE_LIBUSBHSFS)
@@ -297,10 +302,10 @@ if (ENABLE_LIBUSBHSFS)
 
     FetchContent_MakeAvailable(libusbhsfs)
 
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBUSBHSFS)
-    target_link_libraries(sphaira PRIVATE libusbhsfs)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_LIBUSBHSFS)
+    target_link_libraries(hats-tools PRIVATE libusbhsfs)
 else()
-    target_sources(sphaira PRIVATE source/ff16/ffunicode.c)
+    target_sources(hats-tools PRIVATE source/ff16/ffunicode.c)
 endif()
 
 if (ENABLE_LIBUSBDVD)
@@ -333,9 +338,9 @@ if (ENABLE_LIBUSBDVD)
     target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/fs/udf)
     target_include_directories(libusbdvd PUBLIC ${libusbdvd_SOURCE_DIR}/include)
 
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBUSBDVD)
-    target_link_libraries(sphaira PRIVATE libusbdvd)
-    target_sources(sphaira PRIVATE source/usbdvd.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_LIBUSBDVD)
+    target_link_libraries(hats-tools PRIVATE libusbdvd)
+    target_sources(hats-tools PRIVATE source/usbdvd.cpp)
 endif()
 
 if (ENABLE_FTPSRV)
@@ -381,10 +386,10 @@ if (ENABLE_FTPSRV)
     target_link_libraries(ftpsrv_helper PUBLIC ftpsrv)
     target_include_directories(ftpsrv_helper PUBLIC ${ftpsrv_SOURCE_DIR}/src/platform)
 
-    target_compile_definitions(sphaira PRIVATE ENABLE_FTPSRV)
-    target_link_libraries(sphaira PRIVATE ftpsrv_helper)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_FTPSRV)
+    target_link_libraries(hats-tools PRIVATE ftpsrv_helper)
 
-    target_sources(sphaira PRIVATE
+    target_sources(hats-tools PRIVATE
         source/ftpsrv_helper.cpp
         source/ui/menus/ftp_menu.cpp
     )
@@ -397,18 +402,18 @@ if (ENABLE_LIBHAZE)
     )
 
     FetchContent_MakeAvailable(libhaze)
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBHAZE)
-    target_link_libraries(sphaira PRIVATE libhaze)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_LIBHAZE)
+    target_link_libraries(hats-tools PRIVATE libhaze)
 
-    target_sources(sphaira PRIVATE
+    target_sources(hats-tools PRIVATE
         source/haze_helper.cpp
         source/ui/menus/mtp_menu.cpp
     )
 endif()
 
 if (ENABLE_DEVOPTAB_HTTP)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_HTTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_http.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_HTTP)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_http.cpp)
 endif()
 
 if (ENABLE_DEVOPTAB_NFS)
@@ -418,12 +423,12 @@ if (ENABLE_DEVOPTAB_NFS)
     )
 
     FetchContent_MakeAvailable(libnfs)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_NFS)
-    target_link_libraries(sphaira PRIVATE nfs)
-    target_sources(sphaira PRIVATE source/utils/devoptab_nfs.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_NFS)
+    target_link_libraries(hats-tools PRIVATE nfs)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_nfs.cpp)
 
     # todo: fix this upstream as nfs should export these folders.
-    target_include_directories(sphaira PRIVATE
+    target_include_directories(hats-tools PRIVATE
         ${libnfs_SOURCE_DIR}/include
         ${libnfs_SOURCE_DIR}/include/nfsc
         ${libnfs_SOURCE_DIR}/nfs
@@ -437,14 +442,14 @@ if (ENABLE_DEVOPTAB_SMB2)
     )
 
     FetchContent_MakeAvailable(libsmb2)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_SMB2)
-    target_link_libraries(sphaira PRIVATE smb2)
-    target_sources(sphaira PRIVATE source/utils/devoptab_smb2.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_SMB2)
+    target_link_libraries(hats-tools PRIVATE smb2)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_smb2.cpp)
 endif()
 
 if (ENABLE_DEVOPTAB_FTP)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_FTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_ftp.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_FTP)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_ftp.cpp)
 endif()
 
 if (ENABLE_DEVOPTAB_SFTP)
@@ -464,16 +469,16 @@ if (ENABLE_DEVOPTAB_SFTP)
         )
 
         FetchContent_MakeAvailable(libssh2)
-        target_link_libraries(sphaira PRIVATE libssh2::libssh2)
+        target_link_libraries(hats-tools PRIVATE libssh2::libssh2)
     else()
         include(FindPkgConfig)
         pkg_check_modules(LIBSSH2 libssh2 REQUIRED)
-        target_include_directories(sphaira PRIVATE ${LIBSSH2_INCLUDE_DIRS})
-        target_link_libraries(sphaira PRIVATE ${LIBSSH2_LIBRARIES})
+        target_include_directories(hats-tools PRIVATE ${LIBSSH2_INCLUDE_DIRS})
+        target_link_libraries(hats-tools PRIVATE ${LIBSSH2_LIBRARIES})
     endif()
 
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_SFTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_sftp.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_SFTP)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_sftp.cpp)
 endif()
 
 if (ENABLE_DEVOPTAB_WEBDAV)
@@ -486,9 +491,9 @@ if (ENABLE_DEVOPTAB_WEBDAV)
     )
 
     FetchContent_MakeAvailable(pugixml)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_WEBDAV)
-    target_link_libraries(sphaira PRIVATE pugixml)
-    target_sources(sphaira PRIVATE source/utils/devoptab_webdav.cpp)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_DEVOPTAB_WEBDAV)
+    target_link_libraries(hats-tools PRIVATE pugixml)
+    target_sources(hats-tools PRIVATE source/utils/devoptab_webdav.cpp)
 endif()
 
 if (ENABLE_AUDIO_MP3)
@@ -498,20 +503,20 @@ if (ENABLE_AUDIO_MP3)
     )
 
     FetchContent_MakeAvailable(id3v2lib)
-    target_link_libraries(sphaira PRIVATE id3v2lib)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_MP3)
+    target_link_libraries(hats-tools PRIVATE id3v2lib)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_AUDIO_MP3)
 endif()
 
 if (ENABLE_AUDIO_OGG)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_OGG)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_AUDIO_OGG)
 endif()
 
 if (ENABLE_AUDIO_WAV)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_WAV)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_AUDIO_WAV)
 endif()
 
 if (ENABLE_AUDIO_FLAC)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_FLAC)
+    target_compile_definitions(hats-tools PRIVATE ENABLE_AUDIO_FLAC)
 endif()
 
 # ztsd
@@ -594,14 +599,14 @@ add_library(fatfs
 
 target_include_directories(fatfs PUBLIC source/ff16)
 
-set_target_properties(sphaira PROPERTIES
+set_target_properties(hats-tools PROPERTIES
     C_STANDARD 23
     C_EXTENSIONS ON
     CXX_STANDARD 26
     CXX_EXTENSIONS ON
 )
 
-target_link_libraries(sphaira PRIVATE
+target_link_libraries(hats-tools PRIVATE
     libpulsar
     minIni
     nanovg
@@ -618,12 +623,20 @@ target_link_libraries(sphaira PRIVATE
     ${mbedcrypto_lib}
 )
 
-target_include_directories(sphaira PRIVATE
+target_include_directories(hats-tools PRIVATE
     include
     ${minizip_inc}
     ${mbedtls_inc}
     include/yati/nx/nxdumptool
 )
+
+# Generate version header from template
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/app_version.hpp.in
+    ${CMAKE_BINARY_DIR}/app_version.hpp
+    @ONLY
+)
+target_include_directories(hats-tools PRIVATE ${CMAKE_BINARY_DIR})
 
 # copy the romfs
 file(COPY ${CMAKE_SOURCE_DIR}/assets/romfs DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
@@ -632,10 +645,10 @@ file(COPY ${CMAKE_SOURCE_DIR}/assets/romfs DESTINATION ${CMAKE_CURRENT_BINARY_DI
 dkp_add_asset_target(sphaira_romfs ${CMAKE_CURRENT_BINARY_DIR}/romfs)
 
 # wait until hbl is built first as we need the exefs to embed
-add_dependencies(sphaira hbl_nso hbl_npdm)
+add_dependencies(hats-tools hbl_nso hbl_npdm)
 
 # set the embed path for assets and hbl
-target_compile_options(sphaira PRIVATE
+target_compile_options(hats-tools PRIVATE
     --embed-dir=${CMAKE_SOURCE_DIR}/assets/embed
     --embed-dir=${CMAKE_BINARY_DIR}/hbl
 )
@@ -651,28 +664,28 @@ dkp_install_assets(sphaira_romfs
 
 # create nacp
 nx_generate_nacp(
-    OUTPUT sphaira.nacp
-    NAME ${CMAKE_PROJECT_NAME}
-    AUTHOR TotalJustice
-    VERSION ${sphaira_VERSION}
+    OUTPUT hats-tools.nacp
+    NAME "HATS Tools"
+    AUTHOR sthetix
+    VERSION ${HATS_TOOLS_VERSION}
 )
 
 # create nro
-nx_create_nro(sphaira
-    OUTPUT ${CMAKE_BINARY_DIR}/sphaira.nro
+nx_create_nro(hats-tools
+    OUTPUT ${CMAKE_BINARY_DIR}/hats-tools.nro
     ICON ${CMAKE_SOURCE_DIR}/assets/icon.jpg
-    NACP sphaira.nacp
+    NACP hats-tools.nacp
     ROMFS sphaira_romfs
 )
 
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/switch/sphaira)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/switch/hats-tools)
 
 add_custom_command(
-    TARGET sphaira_nro POST_BUILD
+    TARGET hats-tools_nro POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_BINARY_DIR}/sphaira.nro
-        ${CMAKE_BINARY_DIR}/switch/sphaira/sphaira.nro
+        ${CMAKE_BINARY_DIR}/hats-tools.nro
+        ${CMAKE_BINARY_DIR}/switch/hats-tools/hats-tools.nro
 )
 
-message(STATUS "generating nro in: ${CMAKE_BINARY_DIR}/sphaira.nro")
-message(STATUS "run nxlink -s ${CMAKE_BINARY_DIR}/sphaira.nro")
+message(STATUS "generating nro in: ${CMAKE_BINARY_DIR}/hats-tools.nro")
+message(STATUS "run nxlink -s ${CMAKE_BINARY_DIR}/hats-tools.nro")

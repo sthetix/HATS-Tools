@@ -1,0 +1,4 @@
+#pragma once
+
+#define HATS_TOOLS_VERSION "@HATS_TOOLS_VERSION@"
+#define HATS_TOOLS_DISPLAY_VERSION "@sphaira_DISPLAY_VERSION@"

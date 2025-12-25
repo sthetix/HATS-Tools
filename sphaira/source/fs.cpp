@@ -63,6 +63,8 @@ constexpr std::string_view READONLY_FILES[]{
     "/hbmenu.nro", // breaks hbl
     "/payload.bin", // some modchips need this
 
+    "/hats-staging", // HATS staging folder for installer
+
     "/boot.dat", // sxos
     "/license.dat", // sxos
 
@@ -164,17 +166,20 @@ Result CreateFile(FsFileSystem* fs, const FsPathReal& path, u64 size, u32 option
         option |= FsCreateOption_BigFile;
     }
 
-    log_write("trying to create path: %s\n", path.s);
+    log_write("[FS] creating file: %s (size: %llu)\n", path.s, size);
     R_TRY(fsFsCreateFile(fs, path, size, option));
     fsFsCommit(fs);
+    log_write("[FS] created file: %s\n", path.s);
     R_SUCCEED();
 }
 
 Result CreateDirectory(FsFileSystem* fs, const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only_root(path), Result_FsReadOnly);
 
+    log_write("[FS] creating directory: %s\n", path.s);
     R_TRY(fsFsCreateDirectory(fs, path));
     fsFsCommit(fs);
+    log_write("[FS] created directory: %s\n", path.s);
     R_SUCCEED();
 }
 
@@ -247,24 +252,30 @@ Result CreateDirectoryRecursivelyWithPath(FsFileSystem* fs, const FsPath& _path,
 
 Result DeleteFile(FsFileSystem* fs, const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only(path), Result_FsReadOnly);
+    log_write("[FS] deleting file: %s\n", path.s);
     R_TRY(fsFsDeleteFile(fs, path));
     fsFsCommit(fs);
+    log_write("[FS] deleted file: %s\n", path.s);
     R_SUCCEED();
 }
 
 Result DeleteDirectory(FsFileSystem* fs, const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only(path), Result_FsReadOnly);
 
+    log_write("[FS] deleting directory: %s\n", path.s);
     R_TRY(fsFsDeleteDirectory(fs, path));
     fsFsCommit(fs);
+    log_write("[FS] deleted directory: %s\n", path.s);
     R_SUCCEED();
 }
 
 Result DeleteDirectoryRecursively(FsFileSystem* fs, const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only(path), Result_FsReadOnly);
 
+    log_write("[FS] deleting directory recursively: %s\n", path.s);
     R_TRY(fsFsDeleteDirectoryRecursively(fs, path));
     fsFsCommit(fs);
+    log_write("[FS] deleted directory recursively: %s\n", path.s);
     R_SUCCEED();
 }
 
@@ -272,8 +283,10 @@ Result RenameFile(FsFileSystem* fs, const FsPathReal& src, const FsPathReal& dst
     R_UNLESS(ignore_read_only || !is_read_only(src), Result_FsReadOnly);
     R_UNLESS(ignore_read_only || !is_read_only(dst), Result_FsReadOnly);
 
+    log_write("[FS] renaming file: %s -> %s\n", src.s, dst.s);
     R_TRY(fsFsRenameFile(fs, src, dst));
     fsFsCommit(fs);
+    log_write("[FS] renamed file: %s -> %s\n", src.s, dst.s);
     R_SUCCEED();
 }
 
@@ -281,8 +294,10 @@ Result RenameDirectory(FsFileSystem* fs, const FsPathReal& src, const FsPathReal
     R_UNLESS(ignore_read_only || !is_read_only(src), Result_FsReadOnly);
     R_UNLESS(ignore_read_only || !is_read_only(dst), Result_FsReadOnly);
 
+    log_write("[FS] renaming directory: %s -> %s\n", src.s, dst.s);
     R_TRY(fsFsRenameDirectory(fs, src, dst));
     fsFsCommit(fs);
+    log_write("[FS] renamed directory: %s -> %s\n", src.s, dst.s);
     R_SUCCEED();
 }
 
@@ -314,6 +329,7 @@ bool DirExists(FsFileSystem* fs, const FsPath& path) {
 Result CreateFile(const FsPathReal& path, u64 size, u32 option, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only_root(path), Result_FsReadOnly);
 
+    log_write("[FS] creating file (stdio): %s (size: %llu)\n", path.s, size);
     auto fd = open(path, O_WRONLY | O_CREAT, DEFFILEMODE);
     if (fd == -1) {
         if (errno == EEXIST) {
@@ -329,12 +345,14 @@ Result CreateFile(const FsPathReal& path, u64 size, u32 option, bool ignore_read
         R_UNLESS(!ftruncate(fd, size), Result_FsStdioFailedToTruncate);
     }
 
+    log_write("[FS] created file (stdio): %s\n", path.s);
     R_SUCCEED();
 }
 
 Result CreateDirectory(const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only_root(path), Result_FsReadOnly);
 
+    log_write("[FS] creating directory (stdio): %s\n", path.s);
     if (mkdir(path, ACCESSPERMS)) {
         if (errno == EEXIST) {
             return FsError_PathAlreadyExists;
@@ -343,6 +361,7 @@ Result CreateDirectory(const FsPathReal& path, bool ignore_read_only) {
         R_TRY(fsdevGetLastResult());
         return Result_FsStdioFailedToCreateDirectory;
     }
+    log_write("[FS] created directory (stdio): %s\n", path.s);
     R_SUCCEED();
 }
 
@@ -361,20 +380,24 @@ Result CreateDirectoryRecursivelyWithPath(const FsPath& path, bool ignore_read_o
 Result DeleteFile(const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only(path), Result_FsReadOnly);
 
+    log_write("[FS] deleting file (stdio): %s\n", path.s);
     if (unlink(path)) {
         R_TRY(fsdevGetLastResult());
         return Result_FsStdioFailedToDeleteFile;
     }
+    log_write("[FS] deleted file (stdio): %s\n", path.s);
     R_SUCCEED();
 }
 
 Result DeleteDirectory(const FsPathReal& path, bool ignore_read_only) {
     R_UNLESS(ignore_read_only || !is_read_only(path), Result_FsReadOnly);
 
+    log_write("[FS] deleting directory (stdio): %s\n", path.s);
     if (rmdir(path)) {
         R_TRY(fsdevGetLastResult());
         return Result_FsStdioFailedToDeleteDirectory;
     }
+    log_write("[FS] deleted directory (stdio): %s\n", path.s);
     R_SUCCEED();
 }
 
@@ -403,10 +426,12 @@ Result RenameFile(const FsPathReal& src, const FsPathReal& dst, bool ignore_read
     R_UNLESS(ignore_read_only || !is_read_only(src), Result_FsReadOnly);
     R_UNLESS(ignore_read_only || !is_read_only(dst), Result_FsReadOnly);
 
+    log_write("[FS] renaming file (stdio): %s -> %s\n", src.s, dst.s);
     if (rename(src, dst)) {
         R_TRY(fsdevGetLastResult());
         return Result_FsStdioFailedToRename;
     }
+    log_write("[FS] renamed file (stdio): %s -> %s\n", src.s, dst.s);
     R_SUCCEED();
 }
 
@@ -475,6 +500,8 @@ Result OpenFile(fs::Fs* fs, const FsPathReal& path, u32 mode, File* f) {
     f->m_fs = fs;
     f->m_mode = mode;
 
+    log_write("[FS] opening file: %s (mode: 0x%x)\n", path.s, mode);
+
     if (f->m_fs->IsNative()) {
         auto fs = (fs::FsNative*)f->m_fs;
         R_TRY(fsFsOpenFile(&fs->m_fs, path, mode, &f->m_native));
@@ -499,6 +526,7 @@ Result OpenFile(fs::Fs* fs, const FsPathReal& path, u32 mode, File* f) {
         }
     }
 
+    log_write("[FS] opened file: %s\n", path.s);
     R_SUCCEED();
 }
 

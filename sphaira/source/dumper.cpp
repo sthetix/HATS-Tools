@@ -131,21 +131,11 @@ struct WriteNullSource final : WriteSource {
 
 struct WriteUsbSource final : WriteSource {
     WriteUsbSource(u64 transfer_timeout) {
-        // disable mtp if enabled.
-        m_was_mtp_enabled = App::GetMtpEnable();
-        if (m_was_mtp_enabled) {
-            App::SetMtpEnable(false);
-        }
-
         m_usb = std::make_unique<usb::dump::Usb>(transfer_timeout);
     }
 
     ~WriteUsbSource() {
         m_usb.reset();
-
-        if (m_was_mtp_enabled) {
-            App::SetMtpEnable(true);
-        }
     }
 
     Result WaitForConnection(std::string_view path, u64 timeout) {
@@ -174,7 +164,6 @@ struct WriteUsbSource final : WriteSource {
 
 private:
     std::unique_ptr<usb::dump::Usb> m_usb{};
-    bool m_was_mtp_enabled{};
 };
 
 constexpr DumpLocationEntry DUMP_LOCATIONS[]{

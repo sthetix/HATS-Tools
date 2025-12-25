@@ -20,7 +20,7 @@
 namespace sphaira::devoptab {
 namespace {
 
-#define MOUNT_PATH "/config/sphaira/mount/"
+#define MOUNT_PATH "/config/hats-tools/mount/"
 
 using namespace sphaira::ui;
 using namespace sphaira::devoptab::common;

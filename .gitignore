@@ -30,3 +30,6 @@ usb_*.spec
 
 CMakeUserPresets.json
 build_patreon.sh
+
+# Claude
+.claude/

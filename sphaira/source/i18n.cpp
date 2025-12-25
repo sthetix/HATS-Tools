@@ -148,7 +148,7 @@ bool init(long index) {
 
     g_word_order = DetectWordOrder(lang_name);
 
-    const fs::FsPath sdmc_path = "/config/sphaira/i18n/" + lang_name + ".json";
+    const fs::FsPath sdmc_path = "/config/hats-tools/i18n/" + lang_name + ".json";
     const fs::FsPath romfs_path = "romfs:/i18n/" + lang_name + ".json";
     fs::FsPath path = sdmc_path;
 

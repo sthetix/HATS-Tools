@@ -445,7 +445,7 @@ void patch_npdm(std::vector<u8>& npdm, const NpdmPatch& patch) {
     acid.program_id_max = patch.tid;
 
     // patch debug flags based on ams version
-    // SEE: https://github.com/ITotalJustice/sphaira/issues/67
+    // SEE: https://github.com/sthetix/HATS-Tool/issues/67
     u64 ver{};
     splInitialize();
     ON_SCOPE_EXIT(splExit());

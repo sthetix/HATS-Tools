@@ -78,21 +78,27 @@ int devoptab_open(struct _reent *r, void *fileStruct, const char *_path, int fla
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&device->mutex);
 
+    log_write("[FILE] open %s (flags: 0x%x)\n", _path, flags);
+
     if (device->config.read_only && (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND))) {
+        log_write("[FILE] open failed: read-only\n");
         return set_errno(r, EROFS);
     }
 
     char path[PATH_MAX]{};
     if (!device->mount_device->fix_path(_path, path)) {
+        log_write("[FILE] open failed: invalid path\n");
         return set_errno(r, ENOENT);
     }
 
     if (!device->mount_device->Mount()) {
+        log_write("[FILE] open failed: mount error\n");
         return set_errno(r, EIO);
     }
 
     file->fd = calloc(1, device->file_size);
     if (!file->fd) {
+        log_write("[FILE] open failed: out of memory\n");
         return set_errno(r, ENOMEM);
     }
 
@@ -100,9 +106,11 @@ int devoptab_open(struct _reent *r, void *fileStruct, const char *_path, int fla
     if (ret) {
         free(file->fd);
         file->fd = nullptr;
+        log_write("[FILE] open failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    log_write("[FILE] open success: %s\n", _path);
     file->device = device;
     return r->_errno = 0;
 }
@@ -112,6 +120,7 @@ int devoptab_close(struct _reent *r, void *fd) {
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&file->device->mutex);
 
+    log_write("[FILE] close\n");
     if (file->fd) {
         file->device->mount_device->devoptab_close(file->fd);
         free(file->fd);
@@ -128,9 +137,13 @@ ssize_t devoptab_read(struct _reent *r, void *fd, char *ptr, size_t len) {
 
     const auto ret = file->device->mount_device->devoptab_read(file->fd, ptr, len);
     if (ret < 0) {
+        log_write("[FILE] read failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    if (ret > 0) {
+        log_write("[FILE] read %zu bytes\n", ret);
+    }
     return ret;
 }
 
@@ -141,9 +154,13 @@ ssize_t devoptab_write(struct _reent *r, void *fd, const char *ptr, size_t len) 
 
     const auto ret = file->device->mount_device->devoptab_write(file->fd, ptr, len);
     if (ret < 0) {
+        log_write("[FILE] write failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    if (ret > 0) {
+        log_write("[FILE] write %zu bytes\n", ret);
+    }
     return ret;
 }
 
@@ -152,8 +169,10 @@ off_t devoptab_seek(struct _reent *r, void *fd, off_t pos, int dir) {
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&file->device->mutex);
 
+    log_write("[FILE] seek pos: %lld dir: %d\n", pos, dir);
     const auto ret = file->device->mount_device->devoptab_seek(file->fd, pos, dir);
     if (ret < 0) {
+        log_write("[FILE] seek failed: %d\n", -ret);
         set_errno(r, -ret);
         return 0;
     }
@@ -181,24 +200,31 @@ int devoptab_unlink(struct _reent *r, const char *_path) {
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&device->mutex);
 
+    log_write("[FILE] unlink %s\n", _path);
+
     if (device->config.read_only) {
+        log_write("[FILE] unlink failed: read-only\n");
         return set_errno(r, EROFS);
     }
 
     char path[PATH_MAX]{};
     if (!device->mount_device->fix_path(_path, path)) {
+        log_write("[FILE] unlink failed: invalid path\n");
         return set_errno(r, ENOENT);
     }
 
     if (!device->mount_device->Mount()) {
+        log_write("[FILE] unlink failed: mount error\n");
         return set_errno(r, EIO);
     }
 
     const auto ret = device->mount_device->devoptab_unlink(path);
     if (ret) {
+        log_write("[FILE] unlink failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    log_write("[FILE] unlink success: %s\n", _path);
     return r->_errno = 0;
 }
 
@@ -207,29 +233,37 @@ int devoptab_rename(struct _reent *r, const char *_oldName, const char *_newName
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&device->mutex);
 
+    log_write("[FILE] rename %s -> %s\n", _oldName, _newName);
+
     if (device->config.read_only) {
+        log_write("[FILE] rename failed: read-only\n");
         return set_errno(r, EROFS);
     }
 
     char oldName[PATH_MAX]{};
     if (!device->mount_device->fix_path(_oldName, oldName)) {
+        log_write("[FILE] rename failed: invalid old path\n");
         return set_errno(r, ENOENT);
     }
 
     char newName[PATH_MAX]{};
     if (!device->mount_device->fix_path(_newName, newName)) {
+        log_write("[FILE] rename failed: invalid new path\n");
         return set_errno(r, ENOENT);
     }
 
     if (!device->mount_device->Mount()) {
+        log_write("[FILE] rename failed: mount error\n");
         return set_errno(r, EIO);
     }
 
     const auto ret = device->mount_device->devoptab_rename(oldName, newName);
     if (ret) {
+        log_write("[FILE] rename failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    log_write("[FILE] rename success: %s -> %s\n", _oldName, _newName);
     return r->_errno = 0;
 }
 
@@ -238,24 +272,31 @@ int devoptab_mkdir(struct _reent *r, const char *_path, int mode) {
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&device->mutex);
 
+    log_write("[FILE] mkdir %s\n", _path);
+
     if (device->config.read_only) {
+        log_write("[FILE] mkdir failed: read-only\n");
         return set_errno(r, EROFS);
     }
 
     char path[PATH_MAX]{};
     if (!device->mount_device->fix_path(_path, path)) {
+        log_write("[FILE] mkdir failed: invalid path\n");
         return set_errno(r, ENOENT);
     }
 
     if (!device->mount_device->Mount()) {
+        log_write("[FILE] mkdir failed: mount error\n");
         return set_errno(r, EIO);
     }
 
     const auto ret = device->mount_device->devoptab_mkdir(path, mode);
     if (ret) {
+        log_write("[FILE] mkdir failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    log_write("[FILE] mkdir success: %s\n", _path);
     return r->_errno = 0;
 }
 
@@ -264,24 +305,31 @@ int devoptab_rmdir(struct _reent *r, const char *_path) {
     SCOPED_RWLOCK(&g_rwlock, false);
     SCOPED_MUTEX(&device->mutex);
 
+    log_write("[FILE] rmdir %s\n", _path);
+
     if (device->config.read_only) {
+        log_write("[FILE] rmdir failed: read-only\n");
         return set_errno(r, EROFS);
     }
 
     char path[PATH_MAX]{};
     if (!device->mount_device->fix_path(_path, path)) {
+        log_write("[FILE] rmdir failed: invalid path\n");
         return set_errno(r, ENOENT);
     }
 
     if (!device->mount_device->Mount()) {
+        log_write("[FILE] rmdir failed: mount error\n");
         return set_errno(r, EIO);
     }
 
     const auto ret = device->mount_device->devoptab_rmdir(path);
     if (ret) {
+        log_write("[FILE] rmdir failed: %d\n", -ret);
         return set_errno(r, -ret);
     }
 
+    log_write("[FILE] rmdir success: %s\n", _path);
     return r->_errno = 0;
 }
 
@@ -914,7 +962,7 @@ Result MountNetworkDevice(const CreateDeviceCallback& create_device, size_t file
     SCOPED_RWLOCK(&g_rwlock, true);
 
     fs::FsPath config_path{};
-    std::snprintf(config_path, sizeof(config_path), "/config/sphaira/mount/%s.ini", name);
+    std::snprintf(config_path, sizeof(config_path), "/config/hats-tools/mount/%s.ini", name);
 
     MountConfigs configs{};
     LoadConfigsFromIni(config_path, configs);

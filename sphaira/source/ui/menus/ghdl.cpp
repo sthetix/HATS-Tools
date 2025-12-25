@@ -26,7 +26,7 @@
 namespace sphaira::ui::menu::gh {
 namespace {
 
-constexpr auto CACHE_PATH = "/switch/sphaira/cache/github";
+constexpr auto CACHE_PATH = "/switch/hats-tools/cache/github";
 
 auto GenerateApiUrl(const Entry& e) {
     if (e.tag.empty()) {
@@ -98,7 +98,7 @@ void from_json(const fs::FsPath& path, std::vector<GhApiEntry>& e) {
 }
 
 auto DownloadApp(ProgressBox* pbox, const GhApiAsset& gh_asset, const AssetEntry* entry) -> Result {
-    static const fs::FsPath temp_file{"/switch/sphaira/cache/github/ghdl.temp"};
+    static const fs::FsPath temp_file{"/switch/hats-tools/cache/github/ghdl.temp"};
 
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
@@ -265,7 +265,7 @@ void Menu::Scan() {
     }
 
     // then load custom entries
-    LoadEntriesFromPath("/config/sphaira/github/");
+    LoadEntriesFromPath("/config/hats-tools/github/");
     Sort();
     SetIndex(0);
 }

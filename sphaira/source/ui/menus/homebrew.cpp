@@ -421,7 +421,7 @@ Result Menu::InstallHomebrew(const fs::FsPath& path, const std::vector<u8>& icon
     config.nro_path = path.toString();
     R_TRY(nro_get_nacp(path, config.nacp));
     config.icon = icon;
-    return App::Install(config);
+    return install_forwarder(config, NcmStorageId_SdCard);
 }
 
 Result Menu::InstallHomebrewFromPath(const fs::FsPath& path) {
@@ -522,11 +522,9 @@ void Menu::DisplayOptions() {
                 "Files and folders created by the homebrew will still remain. "
                 "Use the FileBrowser to delete them."));
 
-        auto forwarder_entry = options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){
+        options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){
             InstallHomebrew();
         }, true);
-
-        forwarder_entry->Depends(App::GetInstallEnable, i18n::get(App::INSTALL_DEPENDS_STR), App::ShowEnableInstallPrompt);
     }
 }
 

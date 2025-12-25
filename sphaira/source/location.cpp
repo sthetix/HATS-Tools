@@ -58,8 +58,8 @@ auto GetStdio(bool write) -> StdioEntries {
 #endif // ENABLE_LIBUSBDVD
 
 #ifdef ENABLE_LIBUSBHSFS
-    // bail out early if usbhdd is disabled.
-    if (!App::GetHddEnable()) {
+    // USB HDD support is disabled for HATS Tools
+    if (false) {
         log_write("[USBHSFS] not enabled\n");
         return out;
     }

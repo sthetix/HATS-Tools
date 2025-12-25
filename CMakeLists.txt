@@ -12,7 +12,7 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     endif()
 endif()
 
-project(sphaira LANGUAGES C CXX)
+project(hats-tools LANGUAGES C CXX)
 
 # enable setting cmake options via set()
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)

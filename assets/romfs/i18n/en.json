@@ -63,19 +63,19 @@
   ],
   "OK": "OK",
   "Failed to restore hbmenu, please re-download hbmenu": "Failed to restore hbmenu, please re-download hbmenu",
-  "Failed to restore hbmenu, using sphaira instead": "Failed to restore hbmenu, using sphaira instead",
-  "Restored hbmenu, closing sphaira": "Restored hbmenu, closing sphaira",
+  "Failed to restore hbmenu, using HATS-tools instead": "Failed to restore hbmenu, using HATS-tools instead",
+  "Restored hbmenu, closing HATS-tools": "Restored hbmenu, closing HATS-tools",
   "Restored hbmenu": "Restored hbmenu",
-  "Restart Sphaira?": "Restart Sphaira?",
+  "Restart HATS-tools?": "Restart HATS-tools?",
   "Restart": "Restart",
   "Installing Forwarder": "Installing Forwarder",
   "Failed to install forwarder": "Failed to install forwarder",
   "Installed!": "Installed!",
-  "Warning! Logs are enabled, Sphaira will run slowly!": "Warning! Logs are enabled, Sphaira will run slowly!",
+  "Warning! Logs are enabled, HATS-tools will run slowly!": "Warning! Logs are enabled, HATS-tools will run slowly!",
   "Audio disabled due to suspended game": "Audio disabled due to suspended game",
   "Theme Options": "Theme Options",
   "Select Theme": "Select Theme",
-  "Customise the look of Sphaira by changing the theme": "Customise the look of Sphaira by changing the theme",
+  "Customise the look of HATS-tools by changing the theme": "Customise the look of HATS-tools by changing the theme",
   "Music": "Music",
   "bgm_enable_info": [
     "Enable background music.",
@@ -104,17 +104,17 @@
   "Normal": "Normal",
   "Fast": "Fast",
   "Logging": "Logging",
-  "Logs to /config/sphaira/log.txt": "Logs to /config/sphaira/log.txt",
+  "Logs to /config/hats-tools/log.txt": "Logs to /config/hats-tools/log.txt",
   "Replace hbmenu on exit": "Replace hbmenu on exit",
   "hbmenu_replace_info": [
-    "When enabled, it replaces /hbmenu.nro with Sphaira, creating a backup of hbmenu to /switch/hbmenu.nro\n",
+    "When enabled, it replaces /hbmenu.nro with HATS-tools, creating a backup of hbmenu to /switch/hbmenu.nro\n",
     "Disabling will give you the option to restore hbmenu."
   ],
   "Add / modify mounts": "Add / modify mounts",
   "mount_options_info": [
     "Create, modify, delete network mounts (HTTP, FTP, SFTP, SMB, NFS).",
     "Mount options only require a URL and Name be set, with other fields being optional, such as port, user, pass etc.\n",
-    "Any changes made will require restarting Sphaira to take effect."
+    "Any changes made will require restarting HATS-tools to take effect."
   ],
   "Boost CPU during transfer": "Boost CPU during transfer",
   "transfer_boost_info": [
@@ -124,7 +124,7 @@
   "Text scroll speed": "Text scroll speed",
   "Change how fast the scrolling text updates": "Change how fast the scrolling text updates",
   "Set center menu": "Set center menu",
-  "Press OK to restart Sphaira": "Press OK to restart Sphaira",
+  "Press OK to restart HATS-Tools": "Press OK to restart HATS-Tools",
   "Set the menu that appears on the center tab.": "Set the menu that appears on the center tab.",
   "Set left-side menu": "Set left-side menu",
   "Set the menu that appears on the left tab.": "Set the menu that appears on the left tab.",
@@ -260,7 +260,7 @@
   "block_compress_info": [
     "Enables block compression, which compresses the NCA into blocks (at the cost of compression ratio) ",
     "which allows for random access, allowing the NCZ to be mounted as a file system.\n",
-    "NOTE: Sphaira does not yet support mounting NCZ as a file system, but it will be added evntually."
+    "NOTE: HATS-Tools does not yet support mounting NCZ as a file system, but it will be added evntually."
   ],
   "NSZ block size": "NSZ block size",
   "Sets the size of each block. The smaller the size, the faster the random access is at the cost of compression ratio.": [
@@ -339,7 +339,7 @@
   "Show mounts": "Show mounts",
   "mounts_ftp_info": [
     "Shows the mounts folder.\n",
-    "This folder is contains all of the mounts added to Sphaira, allowing you to acces them over FTP!",
+    "This folder is contains all of the mounts added to HATS-Tools, allowing you to acces them over FTP!",
     "For example, you can access your SMB, WebDav or other FTP mounts over FTP."
   ],
   "Show switch": "Show switch",
@@ -373,7 +373,7 @@
   ],
   "mounts_mtp_info": [
     "Shows the mounts folder.\n",
-    "This folder is contains all of the mounts added to Sphaira, allowing you to acces them over MTP!",
+    "This folder is contains all of the mounts added to HATS-Tools, allowing you to acces them over MTP!",
     "For example, you can access your SMB, WebDav and FTP mounts over MTP."
   ],
   "Show DevNull": "Show DevNull",
@@ -768,9 +768,8 @@
     "View save data for each user. You can backup and restore saves.\n",
     "Experimental support for backing up system saves is possible."
   ],
-  "Download releases directly from GitHub. Custom entries can be added to /config/sphaira/github": [
-    "Download releases directly from GitHub. Custom entries can be ",
-    "added to /config/sphaira/github"
+  "Download releases directly from GitHub.": [
+    "Download releases directly from GitHub."
   ],
   "Install apps via FTP.": "Install apps via FTP.",
   "MTP Install": "MTP Install",
@@ -803,7 +802,7 @@
   "Swedish": "Swedish",
   "Vietnamese": "Vietnamese",
   "Ukrainian": "Ukrainian",
-  "Launch one of Sphaira's menus:\n": "Launch one of Sphaira's menus:\n",
+  "Launch one of HATS-Tools's menus:\n": "Launch one of HATS-Tools's menus:\n",
   "\nYou can change the left/right menu in the Advanced Options.": "\nYou can change the left/right menu in the Advanced Options.",
   "Network": "Network",
   "Network Options": "Network Options",
@@ -828,14 +827,14 @@
   ],
   "nxlink_toggle_info": [
     "Toggle FTP, MTP, HDD and NXlink\n",
-    "If Sphaira has a update available, you can download it from this menu"
+    "If HATS-Tools has a update available, you can download it from this menu"
   ],
   "Theme": "Theme",
   "Language": "Language",
   "translation_info": [
     "Change the language.\n",
     "If your language isn't found, or translations are missing, please consider opening a PR at ",
-    "github.com/ITotalJustice/sphaira"
+    "github.com/sthetix/HATS-Tool"
   ],
   "advanced_options_info": [
     "Change the advanced options. ",
@@ -956,30 +955,30 @@
     "a export option for games and saves."
   ],
   "Save": "Save",
-  "Mount entry saved. Restart Sphaira to apply changes.": "Mount entry saved. Restart Sphaira to apply changes.",
-  "Saves the mount entry.\n\nNOTE: You must restart Sphaira for changes to take effect!": [
+  "Mount entry saved. Restart HATS-Tools to apply changes.": "Mount entry saved. Restart HATS-Tools to apply changes.",
+  "Saves the mount entry.\n\nNOTE: You must restart HATS-Tools for changes to take effect!": [
     "Saves the mount entry.\n",
-    "NOTE: You must restart Sphaira for changes to take effect!"
+    "NOTE: You must restart HATS-Tools for changes to take effect!"
   ],
   "Name and URL must be set!": "Name and URL must be set!",
   "Devoptab Options": "Devoptab Options",
   "Create New Entry": "Create New Entry",
-  "Creates a new mount option.\n\nNOTE: You must restart Sphaira for changes to take effect!": [
+  "Creates a new mount option.\n\nNOTE: You must restart HATS-Tools for changes to take effect!": [
     "Creates a new mount option.\n",
-    "NOTE: You must restart Sphaira for changes to take effect!"
+    "NOTE: You must restart HATS-Tools for changes to take effect!"
   ],
   "Modify Existing Entry": "Modify Existing Entry",
   "No mount entries found.": "No mount entries found.",
   "Modify Entry": "Modify Entry",
-  "Modify an existing mount option.\n\nNOTE: You must restart Sphaira for changes to take effect!": [
+  "Modify an existing mount option.\n\nNOTE: You must restart HATS-Tools for changes to take effect!": [
     "Modify an existing mount option.\n",
-    "NOTE: You must restart Sphaira for changes to take effect!"
+    "NOTE: You must restart HATS-Tools for changes to take effect!"
   ],
   "Delete Existing Entry": "Delete Existing Entry",
   "Delete Entry": "Delete Entry",
-  "Delete an existing mount option.\n\nNOTE: You must restart Sphaira for changes to take effect!": [
+  "Delete an existing mount option.\n\nNOTE: You must restart HATS-Tools for changes to take effect!": [
     "Delete an existing mount option.\n",
-    "NOTE: You must restart Sphaira for changes to take effect!"
+    "NOTE: You must restart HATS-Tools for changes to take effect!"
   ],
   "Section #": "Section #"
 }

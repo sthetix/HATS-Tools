@@ -83,61 +83,25 @@ public:
     // returns true if we are hbmenu.
     static auto IsHbmenu() -> bool;
 
-    static auto GetMtpEnable() -> bool;
-    static auto GetFtpEnable() -> bool;
-    static auto GetNxlinkEnable() -> bool;
-    static auto GetHddEnable() -> bool;
-    static auto GetWriteProtect() -> bool;
     static auto GetLogEnable() -> bool;
     static auto GetReplaceHbmenuEnable() -> bool;
-    static auto GetInstallEnable() -> bool;
-    static auto GetInstallSysmmcEnable() -> bool;
-    static auto GetInstallEmummcEnable() -> bool;
-    static auto GetInstallSdEnable() -> bool;
     static auto GetThemeMusicEnable() -> bool;
-    static auto GetLanguage() -> long;
     static auto GetTextScrollSpeed() -> long;
 
-    static auto GetNszCompressLevel() -> u8;
-    static auto GetNszThreadCount() -> u8;
-    static auto GetNszBlockExponent() -> u8;
+    // NSZ compression options
+    static auto GetNszCompressLevel() -> long;
+    static auto GetNszThreadCount() -> long;
+    static auto GetNszBlockExponent() -> long;
 
-    static void SetMtpEnable(bool enable);
-    static void SetFtpEnable(bool enable);
-    static void SetNxlinkEnable(bool enable);
-    static void SetHddEnable(bool enable);
-    static void SetWriteProtect(bool enable);
     static void SetLogEnable(bool enable);
     static void SetReplaceHbmenuEnable(bool enable);
-    static void SetInstallSysmmcEnable(bool enable);
-    static void SetInstallEmummcEnable(bool enable);
-    static void SetInstallSdEnable(bool enable);
-    static void SetInstallPrompt(bool enable);
     static void SetThemeMusicEnable(bool enable);
-    static void Set12HourTimeEnable(bool enable);
-    static void SetLanguage(long index);
     static void SetTextScrollSpeed(long index);
-
-    static auto Install(OwoConfig& config) -> Result;
-    static auto Install(ui::ProgressBox* pbox, OwoConfig& config) -> Result;
 
     static void PlaySoundEffect(SoundEffect effect);
 
-    static void DisplayThemeOptions(bool left_side = true);
-    // todo:
-    static void DisplayNetworkOptions(bool left_side = true);
     static void DisplayMenuOptions(bool left_side = true);
     static void DisplayAdvancedOptions(bool left_side = true);
-    static void DisplayInstallOptions(bool left_side = true);
-    static void DisplayDumpOptions(bool left_side = true);
-    static void DisplayFtpOptions(bool left_side = true);
-    static void DisplayMtpOptions(bool left_side = true);
-    static void DisplayHddOptions(bool left_side = true);
-
-    // helper for sidebar options to toggle install on/off
-    static void ShowEnableInstallPromptOption(option::OptionBool& option, bool& enable);
-    // displays an option box to enable installing, shows warning.
-    static void ShowEnableInstallPrompt();
 
     void Draw();
     void Update();
@@ -257,8 +221,8 @@ public:
     }
 
 // private:
-    static constexpr inline auto CONFIG_PATH = "/config/sphaira/config.ini";
-    static constexpr inline auto PLAYLOG_PATH = "/config/sphaira/playlog.ini";
+    static constexpr inline auto CONFIG_PATH = "/config/hats-tools/config.ini";
+    static constexpr inline auto PLAYLOG_PATH = "/config/hats-tools/playlog.ini";
     static constexpr inline auto INI_SECTION = "config";
     static constexpr inline auto DEFAULT_THEME_PATH = "romfs:/themes/default_theme.ini";
 
@@ -290,28 +254,20 @@ public:
     AmsEmummcPaths m_emummc_paths{};
     bool m_quit{};
 
-    // network
-    option::OptionBool m_nxlink_enabled{INI_SECTION, "nxlink_enabled", true};
-    option::OptionBool m_mtp_enabled{INI_SECTION, "mtp_enabled", false};
-    option::OptionBool m_ftp_enabled{INI_SECTION, "ftp_enabled", false};
-    option::OptionBool m_hdd_enabled{INI_SECTION, "hdd_enabled", true};
-    option::OptionBool m_hdd_write_protect{INI_SECTION, "hdd_write_protect", false};
-
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", false};
     option::OptionBool m_replace_hbmenu{INI_SECTION, "replace_hbmenu", false};
-    option::OptionString m_default_music{INI_SECTION, "default_music", "/config/sphaira/themes/default_music.bfstm"};
+    option::OptionString m_default_music{INI_SECTION, "default_music", "/config/hats-tools/themes/default_music.bfstm"};
     option::OptionString m_theme_path{INI_SECTION, "theme", DEFAULT_THEME_PATH};
     option::OptionBool m_theme_music{INI_SECTION, "theme_music", true};
-    option::OptionBool m_show_ip_addr{INI_SECTION, "show_ip_addr", true};
-    option::OptionLong m_language{INI_SECTION, "language", 0}; // auto
     option::OptionString m_center_menu{INI_SECTION, "center_side_menu", "Homebrew"};
     option::OptionString m_left_menu{INI_SECTION, "left_side_menu", "FileBrowser"};
     option::OptionString m_right_menu{INI_SECTION, "right_side_menu", "Appstore"};
     option::OptionBool m_progress_boost_mode{INI_SECTION, "progress_boost_mode", true};
 
-    // install options
-    option::OptionBool m_install_sysmmc{INI_SECTION, "install_sysmmc", false};
-    option::OptionBool m_install_emummc{INI_SECTION, "install_emummc", false};
+    // todo: move this into it's own menu
+    option::OptionLong m_text_scroll_speed{"accessibility", "text_scroll_speed", 1}; // normal
+
+    // YATI installation options (kept for NSP/NSZ installation via FileBrowser)
     option::OptionBool m_install_sd{INI_SECTION, "install_sd", true};
     option::OptionBool m_allow_downgrade{INI_SECTION, "allow_downgrade", false};
     option::OptionBool m_skip_if_already_installed{INI_SECTION, "skip_if_already_installed", true};
@@ -321,62 +277,26 @@ public:
     option::OptionBool m_skip_addon{INI_SECTION, "skip_addon", false};
     option::OptionBool m_skip_data_patch{INI_SECTION, "skip_data_patch", false};
     option::OptionBool m_skip_ticket{INI_SECTION, "skip_ticket", false};
-    option::OptionBool m_skip_nca_hash_verify{INI_SECTION, "skip_nca_hash_verify", true};
-    option::OptionBool m_skip_rsa_header_fixed_key_verify{INI_SECTION, "skip_rsa_header_fixed_key_verify", true};
-    option::OptionBool m_skip_rsa_npdm_fixed_key_verify{INI_SECTION, "skip_rsa_npdm_fixed_key_verify", true};
+    option::OptionBool m_skip_nca_hash_verify{INI_SECTION, "skip_nca_hash_verify", false};
+    option::OptionBool m_skip_rsa_header_fixed_key_verify{INI_SECTION, "skip_rsa_header_fixed_key_verify", false};
+    option::OptionBool m_skip_rsa_npdm_fixed_key_verify{INI_SECTION, "skip_rsa_npdm_fixed_key_verify", false};
     option::OptionBool m_ignore_distribution_bit{INI_SECTION, "ignore_distribution_bit", false};
-    option::OptionBool m_convert_to_common_ticket{INI_SECTION, "convert_to_common_ticket", true};
+    option::OptionBool m_convert_to_common_ticket{INI_SECTION, "convert_to_common_ticket", false};
     option::OptionBool m_convert_to_standard_crypto{INI_SECTION, "convert_to_standard_crypto", false};
-    option::OptionBool m_lower_master_key{INI_SECTION, "lower_master_key", false};
-    option::OptionBool m_lower_system_version{INI_SECTION, "lower_system_version", true};
+    option::OptionLong m_lower_master_key{INI_SECTION, "lower_master_key", 0};
+    option::OptionLong m_lower_system_version{INI_SECTION, "lower_system_version", 0};
 
-    // dump options
-    option::OptionBool m_dump_app_folder{"dump", "app_folder", true};
-    option::OptionBool m_dump_append_folder_with_xci{"dump", "append_folder_with_xci", true};
-    option::OptionBool m_dump_trim_xci{"dump", "trim_xci", false};
-    option::OptionBool m_dump_label_trim_xci{"dump", "label_trim_xci", false};
-    option::OptionBool m_dump_convert_to_common_ticket{"dump", "convert_to_common_ticket", true};
+    // NSZ compression options (for NSZ export via FileBrowser)
     option::OptionLong m_nsz_compress_level{"dump", "nsz_compress_level", 3};
     option::OptionLong m_nsz_compress_threads{"dump", "nsz_compress_threads", 3};
-    option::OptionBool m_nsz_compress_ldm{"dump", "nsz_compress_ldm", true};
-    option::OptionBool m_nsz_compress_block{"dump", "nsz_compress_block", false};
-    option::OptionLong m_nsz_compress_block_exponent{"dump", "nsz_compress_block_exponent", 6};
+    option::OptionBool m_nsz_compress_ldm{"dump", "nsz_compress_ldm", false};
+    option::OptionLong m_nsz_compress_block{"dump", "nsz_compress_block", 20};
+    option::OptionLong m_nsz_compress_block_exponent{"dump", "nsz_compress_block_exponent", 20};
 
-    // todo: move this into it's own menu
-    option::OptionLong m_text_scroll_speed{"accessibility", "text_scroll_speed", 1}; // normal
-
-    // ftp options.
-    option::OptionLong m_ftp_port{"ftp", "port", 5000};
-    option::OptionBool m_ftp_anon{"ftp", "anon", true};
-    option::OptionString m_ftp_user{"ftp", "user", ""};
-    option::OptionString m_ftp_pass{"ftp", "pass", ""};
-    option::OptionBool m_ftp_show_album{"ftp", "show_album", true};
-    option::OptionBool m_ftp_show_ams_contents{"ftp", "show_ams_contents", false};
-    option::OptionBool m_ftp_show_bis_storage{"ftp", "show_bis_storage", false};
-    option::OptionBool m_ftp_show_bis_fs{"ftp", "show_bis_fs", false};
-    option::OptionBool m_ftp_show_content_system{"ftp", "show_content_system", false};
-    option::OptionBool m_ftp_show_content_user{"ftp", "show_content_user", false};
-    option::OptionBool m_ftp_show_content_sd{"ftp", "show_content_sd", false};
-    // option::OptionBool m_ftp_show_content_sd0{"ftp", "show_content_sd0", false};
-    // option::OptionBool m_ftp_show_custom_system{"ftp", "show_custom_system", false};
-    // option::OptionBool m_ftp_show_custom_sd{"ftp", "show_custom_sd", false};
-    option::OptionBool m_ftp_show_games{"ftp", "show_games", true};
-    option::OptionBool m_ftp_show_install{"ftp", "show_install", true};
-    option::OptionBool m_ftp_show_mounts{"ftp", "show_mounts", false};
-    option::OptionBool m_ftp_show_switch{"ftp", "show_switch", false};
-
-    // mtp options.
-    option::OptionLong m_mtp_vid{"mtp", "vid", 0x057e}; // nintendo (hidden from ui)
-    option::OptionLong m_mtp_pid{"mtp", "pid", 0x201d}; // switch (hidden from ui)
-    option::OptionBool m_mtp_allocate_file{"mtp", "allocate_file", true};
-    option::OptionBool m_mtp_show_album{"mtp", "show_album", true};
-    option::OptionBool m_mtp_show_content_sd{"mtp", "show_content_sd", false};
-    option::OptionBool m_mtp_show_content_system{"mtp", "show_content_system", false};
-    option::OptionBool m_mtp_show_content_user{"mtp", "show_content_user", false};
-    option::OptionBool m_mtp_show_games{"mtp", "show_games", true};
-    option::OptionBool m_mtp_show_install{"mtp", "show_install", true};
-    option::OptionBool m_mtp_show_mounts{"mtp", "show_mounts", false};
-    option::OptionBool m_mtp_show_speedtest{"mtp", "show_speedtest", false};
+    // HATS options.
+    option::OptionString m_hats_installer_payload{"hats", "installer_payload", "/bootloader/payloads/hats-installer.bin"};
+    option::OptionString m_hats_staging_path{"hats", "staging_path", "/hats-staging"};
+    option::OptionString m_hats_install_mode{"hats", "install_mode", "default"}; // replace, default, clean
 
     std::shared_ptr<fs::FsNativeSd> m_fs{};
     audio::SongID m_background_music{};
@@ -386,10 +306,6 @@ public:
 #endif
 
     double m_delta_time{};
-
-    static constexpr const char* INSTALL_DEPENDS_STR =
-        "Installing is disabled.\n\n"
-        "Enable in the options by selecting Menu (Y) -> Advanced -> Install options -> Enable.";
 
 private: // from nanovg decko3d example by adubbz
     static constexpr unsigned NumFramebuffers = 2;

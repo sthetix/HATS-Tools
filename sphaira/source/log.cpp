@@ -5,16 +5,18 @@
 #include <ctime>
 #include <atomic>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <switch.h>
 
 #if sphaira_USE_LOG
 namespace {
 
-constexpr const char* logpath = "/config/sphaira/log.txt";
+constexpr const char* logpath = "sdmc:/config/hats-tools/log.txt";
 
 std::atomic_int32_t nxlink_socket{};
 std::atomic_bool g_file_open{};
 Mutex g_mutex;
+FILE* g_log_file = nullptr;
 
 void log_write_arg_internal(const char* s, std::va_list* v) {
     const auto t = std::time(nullptr);
@@ -25,12 +27,9 @@ void log_write_arg_internal(const char* s, std::va_list* v) {
     std::vsnprintf(buf + len, sizeof(buf) - len, s, *v);
 
     SCOPED_MUTEX(&g_mutex);
-    if (g_file_open) {
-        auto file = std::fopen(logpath, "a");
-        if (file) {
-            std::fprintf(file, "%s", buf);
-            std::fclose(file);
-        }
+    if (g_file_open && g_log_file) {
+        std::fprintf(g_log_file, "%s", buf);
+        std::fflush(g_log_file);
     }
     if (nxlink_socket) {
         std::printf("%s", buf);
@@ -47,10 +46,15 @@ auto log_file_init() -> bool {
         return false;
     }
 
-    auto file = std::fopen(logpath, "w");
-    if (file) {
+    // Ensure the log directory exists
+    mkdir("sdmc:/config", 0777);
+    mkdir("sdmc:/config/hats-tools", 0777);
+
+    g_log_file = std::fopen(logpath, "w");
+    if (g_log_file) {
         g_file_open = true;
-        std::fclose(file);
+        std::fprintf(g_log_file, "=== Log started ===\n");
+        std::fflush(g_log_file);
         return true;
     }
 
@@ -69,7 +73,11 @@ auto log_nxlink_init() -> bool {
 
 void log_file_exit() {
     SCOPED_MUTEX(&g_mutex);
-    if (g_file_open) {
+    if (g_file_open && g_log_file) {
+        std::fprintf(g_log_file, "=== Log closed ===\n");
+        std::fflush(g_log_file);
+        std::fclose(g_log_file);
+        g_log_file = nullptr;
         g_file_open = false;
     }
 }
