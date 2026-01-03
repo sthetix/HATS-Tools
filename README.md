@@ -12,6 +12,16 @@ A comprehensive tool for the Nintendo Switch that allows you to:
 - **File Browser** - Browse, manage, and extract files on your SD card
 - **Cheats Manager** - Download and manage game cheats from multiple sources
 
+## Installation
+
+1. **Download HATS-Tools**: Download the latest `hats-tools.zip` from the [Releases](https://github.com/sthetix/HATS-Tools/releases) page
+2. **Extract to SD Card**: Extract the zip file directly to the root of your Nintendo Switch SD card
+3. **Download HATS Installer Payload**: For the installer functionality to work, you must also download the HATS Installer Payload from [sthetix/HATS-Installer-Payload](https://github.com/sthetix/HATS-Installer-Payload)
+   - Download the payload zip file
+   - Extract it to the root of your SD card as well
+
+**Important**: The HATS Installer Payload is required for the installer function to work. Without it, the installation feature will not function properly.
+
 ## Features
 
 ### Cheats Manager
