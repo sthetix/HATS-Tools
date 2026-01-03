@@ -8,6 +8,7 @@ namespace {
 struct Config {
     char out_text[PATH_MAX]{};
     bool numpad{};
+    bool password{};
 };
 
 Result ShowInternal(Config& cfg, const char* header, const char* guide, const char* initial, s64 len_min, s64 len_max) {
@@ -18,6 +19,10 @@ Result ShowInternal(Config& cfg, const char* header, const char* guide, const ch
 
     if (cfg.numpad) {
         swkbdConfigSetType(&c, SwkbdType_NumPad);
+    }
+
+    if (cfg.password) {
+        swkbdConfigSetPasswordFlag(&c, 1);
     }
 
     // only works if len_max <= 32.
@@ -63,6 +68,14 @@ Result ShowNumPad(s64& out, const char* header, const char* guide, const char* i
     cfg.numpad = true;
     R_TRY(ShowInternal(cfg, header, guide, initial, len_min, len_max));
     out = std::atoll(cfg.out_text);
+    R_SUCCEED();
+}
+
+Result ShowPassword(std::string& out, const char* header, const char* guide, const char* initial, s64 len_min, s64 len_max) {
+    Config cfg{};
+    cfg.password = true;
+    R_TRY(ShowInternal(cfg, header, guide, initial, len_min, len_max));
+    out = cfg.out_text;
     R_SUCCEED();
 }
 

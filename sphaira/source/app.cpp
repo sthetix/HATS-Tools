@@ -1372,9 +1372,10 @@ App::App(const char* argv0) {
             else if (app->m_nsz_compress_ldm.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_block.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_block_exponent.LoadFrom(Key, Value)) {}
-        } else if (!std::strcmp(Section, "hats")) {
-            if (app->m_hats_installer_payload.LoadFrom(Key, Value)) {}
-            else if (app->m_hats_staging_path.LoadFrom(Key, Value)) {}
+        } else if (!std::strcmp(Section, "installer")) {
+            if (app->m_installer_payload.LoadFrom(Key, Value)) {}
+            else if (app->m_installer_staging_path.LoadFrom(Key, Value)) {}
+            else if (app->m_installer_install_mode.LoadFrom(Key, Value)) {}
         }
 
         return 1;
@@ -1898,42 +1899,48 @@ void App::DisplayAdvancedOptions(bool left_side) {
 
     // Install option for HATS installer
     ui::SidebarEntryArray::Items install_mode_items;
-    install_mode_items.push_back("Replace"_i18n);
-    install_mode_items.push_back("Default"_i18n);
-    install_mode_items.push_back("Clean"_i18n);
+    install_mode_items.push_back("Overwrite Everything"_i18n);
+    install_mode_items.push_back("Replace Atmosphere"_i18n);
+    install_mode_items.push_back("Replace Atmosphere+Bootloader"_i18n);
+    install_mode_items.push_back("Replace Atmosphere+Bootloader+Switch"_i18n);
 
-    auto current_install_mode = g_app->m_hats_install_mode.Get();
-    s64 install_mode_index = 1; // default
-    if (current_install_mode == "replace") {
-        install_mode_index = 0;
-    } else if (current_install_mode == "clean") {
+    auto current_install_mode = g_app->m_installer_install_mode.Get();
+    s64 install_mode_index = 0; // overwrite (default, safest option)
+    if (current_install_mode == "replace_ams") {
+        install_mode_index = 1;
+    } else if (current_install_mode == "replace_ams_bl") {
         install_mode_index = 2;
+    } else if (current_install_mode == "clean") {
+        install_mode_index = 3;
     }
 
     options->Add<ui::SidebarEntryArray>("Install option"_i18n, install_mode_items, [install_mode_index](s64& index_out){
-        const char* mode = "default";
-        if (index_out == 0) {
-            mode = "replace";
+        const char* mode = "overwrite";
+        if (index_out == 1) {
+            mode = "replace_ams";
         } else if (index_out == 2) {
+            mode = "replace_ams_bl";
+        } else if (index_out == 3) {
             mode = "clean";
         }
 
         // Save to HATS Tools universal config at sd:/config/hats-tools/config.ini
         // Both the GUI and payload read from this file
-        // Format in [hats] section: install_mode=replace/default/clean
-        ini_puts("hats", "install_mode", mode, App::CONFIG_PATH);
+        // Format in [installer] section: install_mode=overwrite/replace_ams/replace_ams_bl/clean
+        ini_puts("installer", "install_mode", mode, App::CONFIG_PATH);
 
         // Save to internal config (for GUI to remember selection)
-        g_app->m_hats_install_mode.Set(mode);
+        g_app->m_installer_install_mode.Set(mode);
 
         char notify_msg[64];
         std::snprintf(notify_msg, sizeof(notify_msg), "Install mode set to: %s", mode);
         App::Notify(notify_msg);
     }, install_mode_index, i18n::get("install_option_info",
             "Select install mode for HATS installer:\n"
-            "[replace] - Only replace files, no deletion\n"
-            "[default] - Delete /atmosphere only, keep /bootloader and /switch\n"
-            "[clean] - Delete /atmosphere, /bootloader, and /switch (fresh install)\n\n"
+            "[overwrite] - Only overwrite files, no deletion (safest, preserves cheats/mods)\n"
+            "[replace_ams] - Delete and replace /atmosphere only\n"
+            "[replace_ams_bl] - Delete and replace /atmosphere and /bootloader\n"
+            "[clean] - Delete and replace /atmosphere, /bootloader, and /switch (fresh install)\n\n"
             "This writes to sd:/config/hats-tools/config.ini\n"
             "The payload will read this config on boot"
         )

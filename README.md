@@ -4,19 +4,68 @@
   <img src="images/preview.jpg" width="65%" />
 </p>
 
-A tool for the Nintendo Switch that allows you to:
+A comprehensive tool for the Nintendo Switch that allows you to:
 
 - **Fetch HATS Pack** - Download and install HATS pack releases
 - **Fetch Firmware** - Download firmware for installation via Daybreak
 - **Uninstall Components** - Remove installed components (except Atmosphere/Hekate)
+- **File Browser** - Browse, manage, and extract files on your SD card
+- **Cheats Manager** - Download and manage game cheats from multiple sources
 
 ## Features
+
+### Cheats Manager
+The cheats manager provides a comprehensive solution for managing game cheats on your Switch:
+
+- **Multiple Sources**: Download cheats from CheatSlips and nx-cheats-db (local database)
+- **View Installed Cheats**: Browse all games with cheats currently installed on your system
+- **Cheat Preview**: Preview cheat codes before downloading them
+- **Easy Management**: Delete individual cheat files or view detailed cheat information
+- **Automatic Detection**: Automatically detects installed games and their build IDs
+- **CheatSlips Integration**: Login support for CheatSlips to access premium cheat content
 
 ### Automatic Backup
 Before installing a HATS pack, the tool can automatically back up your existing `/atmosphere` and `/bootloader` folders to `/sdbackup/` with timestamps (e.g., `/sdbackup/atmosphere_20231225_143000`). This feature can be toggled in the Advanced Options menu.
 
 ### Backup Warning
 A red warning popup reminds you to backup your SD card before installation. This reminder can be disabled in Advanced Options if you prefer.
+
+### Customizable Sources
+HATS-Tools allows you to customize the source URLs for HATS packs and firmware downloads by editing the configuration file. This is useful if you want to use your own forks or self-hosted releases.
+
+To customize the URLs, edit `/config/hats-tools/config.ini` on your SD card:
+
+```ini
+[pack]
+# HATS pack source (default: sthetix/HATS releases)
+pack_url=https://api.github.com/repos/sthetix/HATS/releases
+
+[installer]
+# HATS installer payload location
+payload=/bootloader/payloads/hats-installer.bin
+
+# Staging path for HATS extraction
+staging_path=/hats-staging
+
+# Installation mode (options: overwrite, replace_ams, replace_ams_bl, clean)
+# overwrite - Only overwrite files, no deletion (safest, preserves cheats/mods)
+# replace_ams - Delete and replace /atmosphere only
+# replace_ams_bl - Delete and replace /atmosphere and /bootloader
+# clean - Delete and replace /atmosphere, /bootloader, and /switch (fresh install)
+install_mode=overwrite
+
+[firmware]
+# Firmware source (default: sthetix/NXFW releases)
+firmware_url=https://api.github.com/repos/sthetix/NXFW/releases
+```
+
+This allows you to:
+- Use custom HATS pack releases from your own repository
+- Point to alternative firmware sources
+- Maintain internal deployments with custom hosts
+- Test personal builds without affecting the default configuration
+
+Note: If these settings are not present in your config.ini, the application will use the default official sources automatically.
 
 ## Building from source
 

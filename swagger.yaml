@@ -1,0 +1,183 @@
+openapi: 3.0.2
+info:
+  description: Cheat Slips
+  title: Cheat Slips API
+  version: 0.0.2
+
+servers:
+  - url: https://www.cheatslips.com/api/v1
+    description: Production server
+
+security:
+  - ApiKeyAuth: [ ]
+
+paths:
+  /token:
+    post:
+      description: Get the api token for the user
+      security: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Token'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        401:
+          description: Error
+
+  /cheats/{titleId}:
+    get:
+      tags:
+        - Cheats
+      description: Get all available cheats for a given game
+      parameters:
+        - in: path
+          name: titleId
+          schema:
+            type: string
+          required: true
+          description: TitleId of the game
+
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Game'
+
+  /cheats/{titleId}/{buildId}:
+    get:
+      tags:
+        - Cheats
+      description: get all available cheats for a given game and revision
+      parameters:
+        - in: path
+          name: titleId
+          schema:
+            type: string
+          required: true
+          description: TitleId of the game
+        - in: path
+          name: buildId
+          schema:
+            type: string
+          required: true
+          description: BuildId of the game
+
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Game'
+
+  /cheats/count:
+    get:
+      tags:
+        - Cheats
+      description: Return the total number of cheats in the database
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheatCount'
+
+
+  /cheats/find/{name}:
+    get:
+      tags:
+        - Cheats
+      description: Get all cheats for a given game's name
+      parameters:
+        - in: path
+          name: name
+          schema:
+            type: string
+          required: true
+          description: Name of the game
+
+      responses:
+        200:
+          description: OK
+
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      name: X-API-TOKEN
+      description: Api token for the user
+      in: header
+  schemas:
+
+    Game:
+      properties:
+        slug:
+          type: string
+          description: Slug of the game
+        name:
+          type: string
+          description: Official name of the game
+        image:
+          type: string
+          description: URL for the cover of the game
+        titleId:
+          type: string
+          description: Game title id
+        cheats:
+          type: array
+          description: Available cheats
+          items:
+            $ref: '#/components/schemas/Cheat'
+
+    Cheat:
+      properties:
+        id:
+          description: Unique identifier for the cheat
+          type: integer
+          readOnly: true
+        buildId:
+          description: BuildId of the game
+          type: string
+        content:
+          description: Content of the cheat
+          type: string
+        credits:
+          description: Credits of the cheat
+          type: string
+
+
+    CheatCount:
+      properties:
+        count:
+          type: integer
+
+    Token:
+      properties:
+        email:
+          description: Email of the user
+          type: string
+          writeOnly: true
+        password:
+          description: Password of the user
+          type: string
+          writeOnly: true
+        token:
+          description: Token for the user (keep it secret !!)
+          type: string
+          readOnly: true

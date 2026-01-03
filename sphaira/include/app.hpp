@@ -299,10 +299,16 @@ public:
     option::OptionLong m_nsz_compress_block{"dump", "nsz_compress_block", 20};
     option::OptionLong m_nsz_compress_block_exponent{"dump", "nsz_compress_block_exponent", 20};
 
-    // HATS options.
-    option::OptionString m_hats_installer_payload{"hats", "installer_payload", "/bootloader/payloads/hats-installer.bin"};
-    option::OptionString m_hats_staging_path{"hats", "staging_path", "/hats-staging"};
-    option::OptionString m_hats_install_mode{"hats", "install_mode", "default"}; // replace, default, clean
+    // Pack options (HATS CFW pack)
+    option::OptionString m_pack_url{"pack", "pack_url", "https://api.github.com/repos/sthetix/HATS/releases"};
+
+    // Installer options (HATS installer payload)
+    option::OptionString m_installer_payload{"installer", "payload", "/bootloader/payloads/hats-installer.bin"};
+    option::OptionString m_installer_staging_path{"installer", "staging_path", "/hats-staging"};
+    option::OptionString m_installer_install_mode{"installer", "install_mode", "overwrite"}; // overwrite, replace_ams, replace_ams_bl, clean
+
+    // Firmware options.
+    option::OptionString m_firmware_url{"firmware", "firmware_url", "https://api.github.com/repos/sthetix/NXFW/releases"};
 
     std::shared_ptr<fs::FsNativeSd> m_fs{};
     audio::SongID m_background_music{};

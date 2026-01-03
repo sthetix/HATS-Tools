@@ -24,7 +24,6 @@ namespace sphaira::ui::menu::hats {
 
 namespace {
 
-constexpr const char* HATS_API_URL = "https://api.github.com/repos/sthetix/HATS/releases";
 constexpr const char* CACHE_PATH = "/switch/hats-tools/cache/hats";
 constexpr const char* RELEASES_CACHE = "/switch/hats-tools/cache/hats/releases.json";
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/download.zip";
@@ -191,9 +190,9 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
 
-    // Get HATS paths from config
+    // Get installer paths from config
     auto app = App::GetApp();
-    const fs::FsPath staging_path = app->m_hats_staging_path.Get().c_str();
+    const fs::FsPath staging_path = app->m_installer_staging_path.Get().c_str();
 
     // Ensure cache directory exists
     fs.CreateDirectoryRecursively(CACHE_PATH);
@@ -426,8 +425,12 @@ void PackMenu::FetchReleases() {
     m_error_message.clear();
     m_releases.clear();
 
+    // Get pack URL from config
+    auto app = App::GetApp();
+    const std::string pack_url = app->m_pack_url.Get();
+
     curl::Api().ToFileAsync(
-        curl::Url{HATS_API_URL},
+        curl::Url{pack_url},
         curl::Path{RELEASES_CACHE},
         curl::Flags{curl::Flag_Cache},
         curl::StopToken{this->GetToken()},
@@ -468,7 +471,7 @@ void PackMenu::DownloadAndInstall() {
 
     // Get staging path from config for display message
     auto app = App::GetApp();
-    const fs::FsPath staging_path = app->m_hats_staging_path.Get().c_str();
+    const fs::FsPath staging_path = app->m_installer_staging_path.Get().c_str();
 
     // Show backup warning first (unless skipped in Advanced options)
     if (!App::GetSkipBackupWarning()) {
@@ -497,7 +500,7 @@ void PackMenu::DownloadAndInstall() {
                                     fs::FsNativeSd fs;
                                     // Get installer payload path from config
                                     auto app = App::GetApp();
-                                    const fs::FsPath installer_payload = app->m_hats_installer_payload.Get().c_str();
+                                    const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
 
                                     hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
 
@@ -554,7 +557,7 @@ void PackMenu::DownloadAndInstall() {
                         fs::FsNativeSd fs;
                         // Get installer payload path from config
                         auto app = App::GetApp();
-                        const fs::FsPath installer_payload = app->m_hats_installer_payload.Get().c_str();
+                        const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
 
                         hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
 

@@ -127,6 +127,19 @@ constexpr std::string_view CDDVD_EXTENSIONS[] = {
     "iso", "cue",
 };
 
+// Text-based file extensions that can be viewed in the file viewer
+constexpr std::string_view TEXT_EXTENSIONS[] = {
+    "txt", "md", "json", "xml", "csv", "log", "ini", "cfg", "conf", "config",
+    "yml", "yaml", "toml", "sh", "bash", "bat", "cmd", "ps1", "py", "js", "ts",
+    "cpp", "c", "h", "hpp", "java", "cs", "php", "rb", "go", "rs", "swift",
+    "kt", "scala", "lua", "sql", "html", "css", "scss", "less", "svg", "jsx",
+    "tsx", "vue", "svelte", "markdown", "rst", "tex", "gitignore", "gitattributes",
+    "env", "properties", "gradle", "maven", "pom", "xml", "manifest", "license",
+    "readme", "changelog", "contributing", "authors", "makefile", "cmake",
+    "dockerfile", "docker-compose", "compose", "nginx", "apache", "htaccess",
+    "ssh", "gpg", "asc", "cert", "crt", "key", "pem", "der", "csr",
+};
+
 struct RomDatabaseEntry {
     // uses the naming scheme from retropie.
     std::string_view folder{};
@@ -741,6 +754,8 @@ void FsView::OnClick() {
             App::Push<music::Menu>(GetFs(), GetNewPathCurrent());
         } else if (IsExtension(entry.GetExtension(), IMAGE_EXTENSIONS)) {
             App::Push<imageview::Menu>(GetFs(), GetNewPathCurrent());
+        } else if (IsExtension(entry.GetExtension(), TEXT_EXTENSIONS)) {
+            App::Push<fileview::Menu>(GetFs(), GetNewPathCurrent());
         }
 #ifdef ENABLE_LIBUSBDVD
         else if (IsExtension(entry.GetExtension(), CDDVD_EXTENSIONS)) {
@@ -1880,8 +1895,8 @@ void FsView::DisplayAdvancedOptions() {
         });
     }
 
-    if (m_entries_current.size() && !m_selected_count && GetEntry().IsFile() && GetEntry().file_size < 1024*64) {
-        options->Add<SidebarEntryCallback>("View as text (unfinished)"_i18n, [this](){
+    if (m_entries_current.size() && !m_selected_count && GetEntry().IsFile() && IsExtension(GetEntry().GetExtension(), TEXT_EXTENSIONS)) {
+        options->Add<SidebarEntryCallback>("View as text"_i18n, [this](){
             App::Push<fileview::Menu>(GetFs(), GetNewPathCurrent());
         });
     }

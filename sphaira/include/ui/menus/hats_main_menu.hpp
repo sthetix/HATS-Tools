@@ -10,6 +10,8 @@ namespace sphaira::ui::menu::hats {
 struct MainMenuItem {
     std::string label;
     std::string description;
+    const char* icon_path; // Path to embedded icon
+    int icon_texture{};    // NanoVG texture handle
 };
 
 struct MainMenu final : MenuBase {
@@ -25,11 +27,15 @@ private:
     void SetIndex(s64 index);
     void OnSelect();
     void RefreshVersionInfo();
+    void LoadIcons();
 
 private:
     std::vector<MainMenuItem> m_items;
     s64 m_index{};
     std::unique_ptr<List> m_list;
+
+    // Scrolling text for app labels
+    ui::ScrollingText m_scroll_name;
 
     // Version info
     std::string m_hats_version;

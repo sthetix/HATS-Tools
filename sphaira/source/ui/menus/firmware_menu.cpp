@@ -22,7 +22,6 @@ namespace sphaira::ui::menu::hats {
 
 namespace {
 
-constexpr const char* NXFW_API_URL = "https://api.github.com/repos/sthetix/NXFW/releases";
 constexpr const char* CACHE_PATH = "/switch/hats-tools/cache/hats";
 constexpr const char* RELEASES_CACHE = "/switch/hats-tools/cache/hats/firmware_releases.json";
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/firmware.zip";
@@ -340,8 +339,12 @@ void FirmwareMenu::FetchReleases() {
     m_error_message.clear();
     m_releases.clear();
 
+    // Get firmware URL from config
+    auto app = App::GetApp();
+    const std::string firmware_url = app->m_firmware_url.Get();
+
     curl::Api().ToFileAsync(
-        curl::Url{NXFW_API_URL},
+        curl::Url{firmware_url},
         curl::Path{RELEASES_CACHE},
         curl::Flags{curl::Flag_Cache},
         curl::StopToken{this->GetToken()},

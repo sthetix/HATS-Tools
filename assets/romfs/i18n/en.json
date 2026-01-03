@@ -980,5 +980,19 @@
     "Delete an existing mount option.\n",
     "NOTE: You must restart HATS-Tools for changes to take effect!"
   ],
-  "Section #": "Section #"
+  "Section #": "Section #",
+  "Cheats": "Cheats",
+  "Download cheat codes from CheatSlips": "Download cheat codes from CheatSlips",
+  "CheatSlips": "CheatSlips",
+  "Download cheats from CheatSlips (requires account)": "Download cheats from CheatSlips (requires account)",
+  "Select Game": "Select Game",
+  "Select Cheats": "Select Cheats",
+  "Toggle": "Toggle",
+  "Logout": "Logout",
+  "Scanning games...": "Scanning games...",
+  "Loading cheats...": "Loading cheats...",
+  "Logging in...": "Logging in...",
+  "No cheats found": "No cheats found",
+  "No cheats selected!": "No cheats selected!",
+  "Downloaded cheats for ": "Downloaded cheats for "
 }

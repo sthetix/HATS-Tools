@@ -1,5 +1,8 @@
 #!/bin/sh
 
+rm -rf build
+rm -rf build/release
+
 # builds a preset
 build_preset() {
     echo Configuring $1 ...
@@ -11,6 +14,7 @@ build_preset() {
 build_preset Release
 
 rm -rf out
+
 
 # --- SWITCH --- #
 mkdir -p out/switch/hats-tools/

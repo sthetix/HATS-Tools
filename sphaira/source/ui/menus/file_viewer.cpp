@@ -17,11 +17,20 @@ Menu::Menu(fs::Fs* fs, const fs::FsPath& path)
     std::string buf;
     if (R_SUCCEEDED(m_fs->OpenFile(m_path, FsOpenMode_Read, &m_file))) {
         m_file.GetSize(&m_file_size);
-        buf.resize(m_file_size + 1);
+
+        // For files larger than 1MB, only read first portion
+        const s64 max_size = 1024*1024;
+        const s64 read_size = std::min(m_file_size, max_size);
+        buf.resize(read_size + 1);
 
         u64 read_bytes;
-        m_file.Read(m_file_offset, buf.data(), buf.size(), 0, &read_bytes);
-        buf[m_file_size] = '\0';
+        m_file.Read(m_file_offset, buf.data(), read_size, 0, &read_bytes);
+        buf[read_bytes] = '\0';
+
+        // Add a note if file was truncated
+        if (m_file_size > read_size) {
+            buf += "\n\n...\n[File truncated - showing first 1MB only]\n";
+        }
     }
 
     m_scroll_text = std::make_unique<ScrollableText>(buf, 0, 120, 500, 1150-110, 18);
