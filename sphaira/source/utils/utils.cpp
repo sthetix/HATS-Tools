@@ -62,85 +62,151 @@ std::string formatSizeNetwork(u64 size) {
     return formatSizeInetrnal(size, 1000.0);
 }
 
-// Secure Monitor call for IRAM copy (smcAmsIramCopy)
-static void smcCopyToIram(uintptr_t iram_addr, const void* src_addr, u32 size) {
-    SecmonArgs args = {};
-    args.X[0] = 0xF0000201;     /* smcAmsIramCopy */
-    args.X[1] = (u64)src_addr;  /* DRAM address */
-    args.X[2] = (u64)iram_addr; /* IRAM address */
-    args.X[3] = size;           /* Amount to copy */
-    args.X[4] = 1;              /* 1 = Write */
-    svcCallSecureMonitor(&args);
-}
-
-// Set reboot to payload mode
-static void smcRebootToIramPayload(void) {
-    splInitialize();
-    splSetConfig((SplConfigItem)65001, 2);  // NeedsReboot = 2 (reboot to IRAM payload)
-    splExit();
-}
-
+// Swap payload.bin with HATS installer and reboot
+// This works on both Erista and Mariko since the system loads sd:\payload.bin
 bool rebootToPayload(const char* path) {
-    log_write("rebootToPayload: attempting to load payload from: %s\n", path);
+    constexpr const char* PAYLOAD_BIN = "/payload.bin";
+    constexpr const char* PAYLOAD_BAK = "/payload.bak";
 
-    // Open the payload file using stdio (simpler, uses fsdev under the hood)
-    FILE* f = fopen(path, "rb");
-    if (!f) {
-        log_write("rebootToPayload: failed to open file\n");
+    log_write("rebootToPayload: launching HATS installer from: %s\n", path);
+
+    // Step 1: Check if payload.bin exists
+    FILE* f_existing = fopen(PAYLOAD_BIN, "rb");
+    if (!f_existing) {
+        log_write("rebootToPayload: ERROR - %s not found! This system may not be configured correctly.\n", PAYLOAD_BIN);
+        log_write("rebootToPayload: sd:\\payload.bin should contain hekate for normal boot.\n");
+        return false;
+    }
+    fclose(f_existing);
+
+    // Step 2: Backup original payload.bin to payload.bak
+    log_write("rebootToPayload: backing up %s to %s\n", PAYLOAD_BIN, PAYLOAD_BAK);
+
+    // Read payload.bin (original hekate)
+    FILE* f_src = fopen(PAYLOAD_BIN, "rb");
+    if (!f_src) {
+        log_write("rebootToPayload: failed to open %s for reading\n", PAYLOAD_BIN);
         return false;
     }
 
-    // Get file size
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    fseek(f_src, 0, SEEK_END);
+    long original_size = ftell(f_src);
+    fseek(f_src, 0, SEEK_SET);
 
-    log_write("rebootToPayload: payload file size: %ld bytes (max: %u)\n", size, IRAM_PAYLOAD_MAX_SIZE);
-
-    // Check payload size
-    if (size <= 0) {
-        log_write("rebootToPayload: invalid payload size (<= 0)\n");
-        fclose(f);
-        return false;
-    }
-    if (size > IRAM_PAYLOAD_MAX_SIZE) {
-        log_write("rebootToPayload: payload too large (> %u)\n", IRAM_PAYLOAD_MAX_SIZE);
-        fclose(f);
+    if (original_size <= 0) {
+        log_write("rebootToPayload: invalid payload.bin size: %ld\n", original_size);
+        fclose(f_src);
         return false;
     }
 
-    // Read payload in chunks and copy to IRAM
-    alignas(0x1000) u8 page_buf[0x1000];
-    bool success = true;
-    size_t offset = 0;
+    std::vector<u8> original_payload(original_size);
+    size_t bytes_read = fread(original_payload.data(), 1, original_size, f_src);
+    fclose(f_src);
 
-    while (offset < (size_t)size) {
-        size_t bytes_to_read = sizeof(page_buf);
-        if (offset + bytes_to_read > (size_t)size) {
-            bytes_to_read = (size_t)size - offset;
-        }
-
-        size_t bytes_read = fread(page_buf, 1, bytes_to_read, f);
-        if (bytes_read == 0) {
-            log_write("rebootToPayload: failed to read payload at offset %zu\n", offset);
-            success = false;
-            break;
-        }
-
-        smcCopyToIram(AMS_IWRAM_OFFSET + offset, page_buf, bytes_read);
-        offset += bytes_read;
+    if (bytes_read != (size_t)original_size) {
+        log_write("rebootToPayload: failed to read %s\n", PAYLOAD_BIN);
+        return false;
     }
 
-    fclose(f);
-
-    if (success) {
-        log_write("rebootToPayload: payload loaded to IRAM, triggering reboot...\n");
-        smcRebootToIramPayload();
-    } else {
-        log_write("rebootToPayload: failed to load payload to IRAM\n");
+    // Write backup
+    FILE* f_bak = fopen(PAYLOAD_BAK, "wb");
+    if (!f_bak) {
+        log_write("rebootToPayload: failed to create %s\n", PAYLOAD_BAK);
+        return false;
     }
 
-    return success;
+    size_t bytes_written = fwrite(original_payload.data(), 1, original_size, f_bak);
+    fclose(f_bak);
+
+    if (bytes_written != (size_t)original_size) {
+        log_write("rebootToPayload: failed to write backup\n");
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    log_write("rebootToPayload: backup created (%ld bytes)\n", original_size);
+
+    // Step 3: Copy HATS installer to payload.bin
+    log_write("rebootToPayload: copying HATS installer to %s\n", PAYLOAD_BIN);
+
+    FILE* f_installer = fopen(path, "rb");
+    if (!f_installer) {
+        log_write("rebootToPayload: failed to open HATS installer: %s\n", path);
+        // Restore backup before returning
+        FILE* f_restore = fopen(PAYLOAD_BIN, "wb");
+        fwrite(original_payload.data(), 1, original_size, f_restore);
+        fclose(f_restore);
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    fseek(f_installer, 0, SEEK_END);
+    long installer_size = ftell(f_installer);
+    fseek(f_installer, 0, SEEK_SET);
+
+    if (installer_size <= 0) {
+        log_write("rebootToPayload: invalid HATS installer size: %ld\n", installer_size);
+        fclose(f_installer);
+        // Restore backup
+        FILE* f_restore = fopen(PAYLOAD_BIN, "wb");
+        fwrite(original_payload.data(), 1, original_size, f_restore);
+        fclose(f_restore);
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    std::vector<u8> installer_data(installer_size);
+    bytes_read = fread(installer_data.data(), 1, installer_size, f_installer);
+    fclose(f_installer);
+
+    if (bytes_read != (size_t)installer_size) {
+        log_write("rebootToPayload: failed to read HATS installer\n");
+        // Restore backup
+        FILE* f_restore = fopen(PAYLOAD_BIN, "wb");
+        fwrite(original_payload.data(), 1, original_size, f_restore);
+        fclose(f_restore);
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    // Write HATS installer to payload.bin
+    FILE* f_dst = fopen(PAYLOAD_BIN, "wb");
+    if (!f_dst) {
+        log_write("rebootToPayload: failed to open %s for writing\n", PAYLOAD_BIN);
+        // Restore backup
+        FILE* f_restore = fopen(PAYLOAD_BIN, "wb");
+        fwrite(original_payload.data(), 1, original_size, f_restore);
+        fclose(f_restore);
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    bytes_written = fwrite(installer_data.data(), 1, installer_size, f_dst);
+    fclose(f_dst);
+
+    if (bytes_written != (size_t)installer_size) {
+        log_write("rebootToPayload: failed to write HATS installer\n");
+        // Restore backup
+        FILE* f_restore = fopen(PAYLOAD_BIN, "wb");
+        fwrite(original_payload.data(), 1, original_size, f_restore);
+        fclose(f_restore);
+        remove(PAYLOAD_BAK);
+        return false;
+    }
+
+    // Step 4: Sync filesystem
+    fsdevCommitDevice("sdmc");
+
+    log_write("rebootToPayload: payload swapped (%ld bytes), rebooting...\n", installer_size);
+
+    // Step 5: Reboot - system will load sd:\payload.bin (which is now HATS installer)
+    log_write("rebootToPayload: HATS installer will restore hekate after installation\n");
+
+    spsmInitialize();
+    spsmShutdown(true);
+
+    // Should not reach here
+    return false;
 }
 
 } // namespace sphaira::utils

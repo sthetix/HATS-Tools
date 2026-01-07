@@ -29,7 +29,8 @@ std::string formatSizeStorage(u64 size);
 // formats size to 1.23 MB in 1000 base (used for progress bars).
 std::string formatSizeNetwork(u64 size);
 
-// Reboot to a payload file (e.g., TegraExplorer.bin)
+// Reboot to a payload file (HATS installer)
+// Swaps sd:\payload.bin with the installer, then reboots
 // Returns true on success, false on failure
 bool rebootToPayload(const char* path);
 
