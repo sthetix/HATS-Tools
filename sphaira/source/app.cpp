@@ -1381,6 +1381,29 @@ App::App(const char* argv0) {
         return 1;
     };
 
+    // Create default config.ini if it doesn't exist
+    // This ensures the HATS installer payload has a valid install mode from first run
+    {
+        if (!m_fs->FileExists(CONFIG_PATH)) {
+            SCOPED_TIMESTAMP("config default write");
+
+            // Ensure the config directory exists
+            m_fs->CreateDirectoryRecursively("/config/hats-tools");
+
+            // [config] section - HATS-Tools essential settings only
+            ini_putl(INI_SECTION, "log_enabled", 0, CONFIG_PATH);              // Logging off
+            ini_putl(INI_SECTION, "skip_backup_warning", 0, CONFIG_PATH);       // Skip Backup Reminder off
+            ini_putl(INI_SECTION, "backup_enabled", 1, CONFIG_PATH);            // Auto Backup before install ON
+            ini_puts(INI_SECTION, "theme", DEFAULT_THEME_PATH, CONFIG_PATH);    // Theme default
+            ini_putl(INI_SECTION, "theme_music", 0, CONFIG_PATH);               // Theme music disabled (not used)
+
+            // [installer] section - HATS installer settings (payload reads this)
+            ini_puts("installer", "install_mode", "overwrite", CONFIG_PATH);     // Default install mode
+
+            log_write("[config] created default config.ini\n");
+        }
+    }
+
     // load all configs ahead of time, as this is actually faster than
     // loading each config one by one as it avoids re-opening the file multiple times.
     {

@@ -5,6 +5,7 @@
 #include "ui/progress_box.hpp"
 #include "ui/error_box.hpp"
 #include "ui/warning_box.hpp"
+#include "ui/menus/pack_details_menu.hpp"
 
 #include "app.hpp"
 #include "log.hpp"
@@ -38,6 +39,20 @@ void from_json(yyjson_val* json, ReleaseEntry& e) {
         JSON_SET_STR(name);
         JSON_SET_STR(published_at);
         JSON_SET_BOOL(prerelease);
+        JSON_SET_STR(body);
+
+        case cexprHash("author"): {
+            if (yyjson_is_obj(val)) {
+                auto login_val = yyjson_obj_get(val, "login");
+                auto html_url_val = yyjson_obj_get(val, "html_url");
+                if (login_val) {
+                    e.author = yyjson_get_str(login_val);
+                }
+                if (html_url_val) {
+                    e.author_url = yyjson_get_str(html_url_val);
+                }
+            }
+        } break;
 
         case cexprHash("assets"): {
             if (yyjson_is_arr(val)) {
@@ -310,6 +325,11 @@ PackMenu::PackMenu() : MenuBase{"HATS Pack Releases", MenuFlag_None} {
         std::make_pair(Button::X, Action{"Refresh"_i18n, [this](){
             m_loaded = false;
             FetchReleases();
+        }}),
+        std::make_pair(Button::Y, Action{"Details"_i18n, [this](){
+            if (!m_releases.empty() && !m_loading) {
+                ShowReleaseDetails();
+            }
         }})
     );
 
@@ -599,6 +619,25 @@ void PackMenu::DownloadAndInstall() {
 void PackMenu::UpdateSubheading() {
     const auto index = m_releases.empty() ? 0 : m_index + 1;
     this->SetSubHeading(std::to_string(index) + " / " + std::to_string(m_releases.size()));
+}
+
+void PackMenu::ShowReleaseDetails() {
+    if (m_releases.empty() || m_index >= (s64)m_releases.size()) {
+        return;
+    }
+
+    const auto& release = m_releases[m_index];
+    App::Push<PackDetailsMenu>(release, [this, release]() {
+        // User clicked Download in details view, trigger download flow
+        // Find the release again to ensure correct index
+        for (size_t i = 0; i < m_releases.size(); i++) {
+            if (m_releases[i].tag_name == release.tag_name) {
+                m_index = i;
+                break;
+            }
+        }
+        DownloadAndInstall();
+    });
 }
 
 } // namespace sphaira::ui::menu::hats

@@ -101,8 +101,11 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Uninstall Components", MenuFlag_N
         }})
     );
 
-    const Vec4 v{75, GetY() + 1.f + 60.f, 1220.f - 150.f, 55.f};
-    m_list = std::make_unique<List>(1, 8, m_pos, v);
+    // List Y position lowered to avoid crossing the warning text
+    // Warning text is at GetY() + 10.f, selection count at GetY() + 32.f
+    // Need extra space so scrolling items don't cross into the fixed text area
+    const Vec4 v{75, GetY() + 1.f + 95.f, 1220.f - 150.f, 55.f};
+    m_list = std::make_unique<List>(1, 7, m_pos, v);
     m_list->SetLayout(List::Layout::GRID);
 }
 
@@ -157,6 +160,11 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
             "No components found in manifest");
         return;
     }
+
+    // Manual scissor to prevent list items from crossing into the warning text area
+    // Scissor starts at the same position as the list (GetY() + 96.f)
+    nvgSave(vg);
+    nvgScissor(vg, 75.f, GetY() + 96.f, 1220.f - 150.f, SCREEN_HEIGHT - (GetY() + 96.f));
 
     constexpr float checkbox_size{24.f};
 
@@ -222,6 +230,8 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
                 "[Protected]");
         }
     });
+
+    nvgRestore(vg);
 }
 
 void UninstallerMenu::OnFocusGained() {

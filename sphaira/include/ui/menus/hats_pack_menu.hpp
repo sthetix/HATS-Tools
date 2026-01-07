@@ -13,6 +13,9 @@ struct ReleaseEntry {
     std::string published_at;
     std::string download_url;
     std::string asset_name;
+    std::string body;        // Release notes/description
+    std::string author;      // Author username
+    std::string author_url;  // Author profile URL
     u64 size{};
     bool prerelease{};
 };
@@ -31,6 +34,7 @@ private:
     void FetchReleases();
     void DownloadAndInstall();
     void UpdateSubheading();
+    void ShowReleaseDetails();
 
 private:
     std::vector<ReleaseEntry> m_releases;
