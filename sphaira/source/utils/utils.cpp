@@ -197,6 +197,9 @@ bool rebootToPayload(const char* path) {
     // Step 4: Sync filesystem
     fsdevCommitDevice("sdmc");
 
+    // Small delay to ensure SD card finishes writing (important for Erista)
+    svcSleepThread(500'000'000ULL); // 500ms
+
     log_write("rebootToPayload: payload swapped (%ld bytes), rebooting...\n", installer_size);
 
     // Step 5: Reboot - system will load sd:\payload.bin (which is now HATS installer)
