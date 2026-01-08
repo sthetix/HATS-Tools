@@ -28,6 +28,7 @@ struct PackMenu final : MenuBase {
     void Update(Controller* controller, TouchInfo* touch) override;
     void Draw(NVGcontext* vg, Theme* theme) override;
     void OnFocusGained() override;
+    void OnFocusLost() override;
 
 private:
     void SetIndex(s64 index);
@@ -35,6 +36,7 @@ private:
     void DownloadAndInstall();
     void UpdateSubheading();
     void ShowReleaseDetails();
+    void ShowLaunchDialog();
 
 private:
     std::vector<ReleaseEntry> m_releases;

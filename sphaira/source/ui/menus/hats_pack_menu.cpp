@@ -313,6 +313,16 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
 PackMenu::PackMenu() : MenuBase{"HATS Pack Releases", MenuFlag_None} {
     fs::FsNativeSd().CreateDirectoryRecursively(CACHE_PATH);
 
+    // Check and auto-revert stale swaps on menu creation (cleanup from previous sessions)
+    if (utils::isPayloadSwapped()) {
+        hats_log_write("hats: detected stale payload swap on menu creation, reverting\n");
+        utils::revertPayloadSwap();
+    }
+    if (utils::isHekateAutobootActive()) {
+        hats_log_write("hats: detected stale hekate autoboot on menu creation, reverting\n");
+        utils::restoreHekateIni();
+    }
+
     this->SetActions(
         std::make_pair(Button::A, Action{"Install"_i18n, [this](){
             if (!m_releases.empty() && !m_loading) {
@@ -339,6 +349,7 @@ PackMenu::PackMenu() : MenuBase{"HATS Pack Releases", MenuFlag_None} {
 }
 
 PackMenu::~PackMenu() {
+    // No swap handling needed - HATS installer handles everything
 }
 
 void PackMenu::Update(Controller* controller, TouchInfo* touch) {
@@ -432,6 +443,10 @@ void PackMenu::OnFocusGained() {
     }
 }
 
+void PackMenu::OnFocusLost() {
+    // No swap handling needed - HATS installer handles everything
+}
+
 void PackMenu::SetIndex(s64 index) {
     m_index = index;
     if (!m_index) {
@@ -512,43 +527,13 @@ void PackMenu::DownloadAndInstall() {
                         }
 
                         App::Push<ProgressBox>(0, "Installing"_i18n, display_name,
-                            [release](auto pbox) -> Result {
+                            [this, release](auto pbox) -> Result {
                                 return DownloadAndExtract(pbox, release);
                             },
-                            [display_name](Result rc) {
+                            [this, display_name](Result rc) {
                                 if (R_SUCCEEDED(rc)) {
-                                    fs::FsNativeSd fs;
-                                    // Get installer payload path from config
-                                    auto app = App::GetApp();
-                                    const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
-
-                                    hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
-
-                                    bool installer_exists = fs.FileExists(installer_payload);
-                                    hats_log_write("hats: installer file exists: %s\n", installer_exists ? "yes" : "no");
-
-                                    if (installer_exists) {
-                                        // Show confirmation dialog before launching payload
-                                        App::Push<OptionBox>(
-                                            display_name + " downloaded",
-                                            "Back"_i18n, "Launch"_i18n, 1, [installer_payload](auto op_index) {
-                                                if (!op_index || *op_index != 1) {
-                                                    hats_log_write("hats: user chose not to launch installer\n");
-                                                    return;
-                                                }
-
-                                                hats_log_write("hats: launching HATS installer: %s\n", static_cast<const char*>(installer_payload));
-                                                bool reboot_success = utils::rebootToPayload(installer_payload);
-                                                hats_log_write("hats: rebootToPayload result: %s\n", reboot_success ? "success" : "failed");
-                                                if (!reboot_success) {
-                                                    App::Push<OptionBox>("Failed to launch HATS installer!\n\n" + std::string(installer_payload), "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
-                                                }
-                                            }
-                                        );
-                                    } else {
-                                        hats_log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
-                                        App::Push<OptionBox>("HATS-installer payload not found", "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
-                                    }
+                                    hats_log_write("hats: download complete, ready to launch\n");
+                                    ShowLaunchDialog();
                                 } else {
                                     App::Push<ErrorBox>(rc, "Failed to download " + display_name);
                                 }
@@ -564,56 +549,85 @@ void PackMenu::DownloadAndInstall() {
             "Download " + display_name + "?\n\n"
             "Files will be extracted to " + std::string(staging_path) + ".",
             "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
-            if (!op_index || *op_index != 1) {
-                return;
-            }
-
-            App::Push<ProgressBox>(0, "Installing"_i18n, display_name,
-                [release](auto pbox) -> Result {
-                    return DownloadAndExtract(pbox, release);
-                },
-                [display_name](Result rc) {
-                    if (R_SUCCEEDED(rc)) {
-                        fs::FsNativeSd fs;
-                        // Get installer payload path from config
-                        auto app = App::GetApp();
-                        const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
-
-                        hats_log_write("hats: checking for HATS installer at: %s\n", static_cast<const char*>(installer_payload));
-
-                        bool installer_exists = fs.FileExists(installer_payload);
-                        hats_log_write("hats: installer file exists: %s\n", installer_exists ? "yes" : "no");
-
-                        if (installer_exists) {
-                            // Show confirmation dialog before launching payload
-                            App::Push<OptionBox>(
-                                display_name + " downloaded",
-                                "Back"_i18n, "Launch"_i18n, 1, [installer_payload](auto op_index) {
-                                    if (!op_index || *op_index != 1) {
-                                        hats_log_write("hats: user chose not to launch installer\n");
-                                        return;
-                                    }
-
-                                    hats_log_write("hats: launching HATS installer: %s\n", static_cast<const char*>(installer_payload));
-                                    bool reboot_success = utils::rebootToPayload(installer_payload);
-                                    hats_log_write("hats: rebootToPayload result: %s\n", reboot_success ? "success" : "failed");
-                                    if (!reboot_success) {
-                                        App::Push<OptionBox>("Failed to launch HATS installer!\n\n" + std::string(installer_payload), "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
-                                    }
-                                }
-                            );
-                        } else {
-                            hats_log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
-                            App::Push<OptionBox>("HATS-installer payload not found", "OK"_i18n, ""_i18n, 0, [](auto op_index) {});
-                        }
-                    } else {
-                        App::Push<ErrorBox>(rc, "Failed to download " + display_name);
-                    }
+                if (!op_index || *op_index != 1) {
+                    return;
                 }
-            );
+
+                App::Push<ProgressBox>(0, "Installing"_i18n, display_name,
+                    [this, release](auto pbox) -> Result {
+                        return DownloadAndExtract(pbox, release);
+                    },
+                    [this, display_name](Result rc) {
+                        if (R_SUCCEEDED(rc)) {
+                            hats_log_write("hats: download complete, ready to launch\n");
+                            ShowLaunchDialog();
+                        } else {
+                            App::Push<ErrorBox>(rc, "Failed to download " + display_name);
+                        }
+                    }
+                );
             }
         );
     }
+}
+
+void PackMenu::ShowLaunchDialog() {
+    App::Push<OptionBox>(
+        "HATS Pack ready!\n\nLaunch HATS installer?",
+        "Back"_i18n, "Launch"_i18n, 1, [](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                hats_log_write("hats: user chose not to launch installer\n");
+                return;
+            }
+
+            hats_log_write("hats: user clicked Launch, setting up hekate autoboot...\n");
+
+            // Get installer payload path
+            auto app = App::GetApp();
+            const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
+
+            // Show progress box while modifying hekate_ipl.ini
+            App::Push<ProgressBox>(0, "Preparing..."_i18n, "Configuring hekate",
+                [installer_payload](auto pbox) -> Result {
+                    fs::FsNativeSd fs;
+
+                    hats_log_write("hats: checking HATS installer at: %s\n", static_cast<const char*>(installer_payload));
+
+                    if (!fs.FileExists(installer_payload)) {
+                        hats_log_write("hats: HATS installer not found at: %s\n", static_cast<const char*>(installer_payload));
+                        return 0x666; // Error code
+                    }
+
+                    // Set hekate_ipl.ini to auto-boot HATS installer
+                    hats_log_write("hats: configuring hekate autoboot...\n");
+                    pbox->NewTransfer("Modifying hekate_ipl.ini");
+                    bool success = utils::setHekateAutobootPayload(static_cast<const char*>(installer_payload));
+
+                    if (!success) {
+                        hats_log_write("hats: failed to configure hekate autoboot\n");
+                        return 0x667;
+                    }
+
+                    hats_log_write("hats: hekate configured, ready to reboot\n");
+                    return 0;
+                },
+                [](Result rc) {
+                    if (R_FAILED(rc)) {
+                        hats_log_write("hats: configuration failed with result: 0x%X\n", rc);
+                        App::Push<ErrorBox>(rc, "Failed to configure hekate");
+                        return;
+                    }
+
+                    // Configuration successful, now reboot
+                    hats_log_write("hats: launching HATS installer (rebooting to hekate...)\n");
+
+                    spsmInitialize();
+                    spsmShutdown(true);
+                    // Should not reach here
+                }
+            );
+        }
+    );
 }
 
 void PackMenu::UpdateSubheading() {

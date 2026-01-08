@@ -24,6 +24,7 @@
 #include "utils/profile.hpp"
 #include "utils/thread.hpp"
 #include "utils/devoptab.hpp"
+#include "utils/utils.hpp"
 
 #include <nanovg_dk.h>
 #include <minIni.h>
@@ -1430,6 +1431,20 @@ App::App(const char* argv0) {
             SCOPED_TIMESTAMP("config directory init");
             m_fs->CreateDirectoryRecursively("/config/hats-tools");
             m_fs->CreateDirectory("/config/hats-tools/themes");
+        }
+
+        {
+            // Auto-revert stale payload swap from previous session (HOME button crash, etc)
+            SCOPED_TIMESTAMP("payload swap auto-revert");
+            if (utils::isPayloadSwapped()) {
+                log_write("[app] detected stale payload swap from previous session, reverting\n");
+                utils::revertPayloadSwap();
+            }
+            // Auto-revert stale hekate autoboot from previous session
+            if (utils::isHekateAutobootActive()) {
+                log_write("[app] detected stale hekate autoboot from previous session, reverting\n");
+                utils::restoreHekateIni();
+            }
         }
 
         {

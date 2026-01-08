@@ -29,6 +29,29 @@ std::string formatSizeStorage(u64 size);
 // formats size to 1.23 MB in 1000 base (used for progress bars).
 std::string formatSizeNetwork(u64 size);
 
+// Set hekate_ipl.ini to auto-boot HATS installer payload
+// Backs up original ini and modifies config to autoboot the payload
+// Returns true on success, false on failure
+bool setHekateAutobootPayload(const char* payload_path);
+
+// Restore hekate_ipl.ini from backup
+// Returns true if restored, false if no backup existed
+bool restoreHekateIni();
+
+// Check if hekate_ipl.ini backup exists (autoboot is active)
+bool isHekateAutobootActive();
+
+// Swap payload.bin with HATS installer (no reboot)
+// Returns true on success, false on failure
+bool swapPayload(const char* path);
+
+// Revert payload swap (restore hekate from backup)
+// Returns true if reverted, false if no backup existed
+bool revertPayloadSwap();
+
+// Check if payload swap is currently active (payload.bak exists)
+bool isPayloadSwapped();
+
 // Reboot to a payload file (HATS installer)
 // Swaps sd:\payload.bin with the installer, then reboots
 // Returns true on success, false on failure
