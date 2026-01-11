@@ -231,8 +231,14 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     std::string download_path = std::string(CACHE_PATH) + "/" + release.asset_name;
     hats_log_write("hats: download path: %s\n", download_path.c_str());
 
-    // Clean up any existing file at download path
-    fs.DeleteFile(download_path.c_str());
+    // Check if zip is already cached (exists locally)
+    bool zip_exists = fs.FileExists(download_path.c_str());
+    hats_log_write("hats: zip already exists in cache: %s\n", zip_exists ? "yes" : "no");
+
+    // Clean up existing file at download path only if we're going to download
+    if (!zip_exists) {
+        fs.DeleteFile(download_path.c_str());
+    }
 
     // Backup existing folders if enabled
     if (App::GetBackupEnabled()) {
@@ -245,8 +251,8 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
         }
     }
 
-    // Download the ZIP
-    if (!pbox->ShouldExit()) {
+    // Download the ZIP (only if not already cached)
+    if (!pbox->ShouldExit() && !zip_exists) {
         pbox->NewTransfer("Downloading " + release.asset_name);
         hats_log_write("hats: downloading %s\n", release.download_url.c_str());
 
@@ -522,20 +528,33 @@ void PackMenu::DownloadAndInstall() {
     auto app = App::GetApp();
     const fs::FsPath staging_path = app->m_installer_staging_path.Get().c_str();
 
+    // Check if zip is already cached
+    fs::FsNativeSd fs;
+    std::string cached_zip_path = std::string(CACHE_PATH) + "/" + release.asset_name;
+    bool zip_cached = (R_SUCCEEDED(fs.GetFsOpenResult()) && fs.FileExists(cached_zip_path.c_str()));
+
     // Show backup warning first (unless skipped in Advanced options)
     if (!App::GetSkipBackupWarning()) {
         App::Push<WarningBox>(
             "Make sure you have backed up\nyour SD card!",
-            "Cancel"_i18n, "Continue"_i18n, 1, [this, release, display_name, staging_path](auto op_index) {
+            "Cancel"_i18n, "Continue"_i18n, 1, [this, release, display_name, staging_path, zip_cached](auto op_index) {
                 if (!op_index || *op_index != 1) {
                     return;
                 }
 
-                // Show download confirmation
+                // Show download/install confirmation
+                std::string confirm_msg;
+                if (zip_cached) {
+                    confirm_msg = "Install " + display_name + "?\n\n"
+                                  "(Using cached zip on SD card)";
+                } else {
+                    confirm_msg = "Download " + display_name + "?\n\n"
+                                  "Files will be extracted to " + std::string(staging_path) + ".";
+                }
+
                 App::Push<OptionBox>(
-                    "Download " + display_name + "?\n\n"
-                    "Files will be extracted to " + std::string(staging_path) + ".",
-                    "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
+                    confirm_msg,
+                    "Cancel"_i18n, zip_cached ? "Install"_i18n : "Download"_i18n, 1, [this, release, display_name](auto op_index) {
                         if (!op_index || *op_index != 1) {
                             return;
                         }
@@ -563,10 +582,18 @@ void PackMenu::DownloadAndInstall() {
         );
     } else {
         // Skip backup warning, go directly to download confirmation
+        std::string confirm_msg;
+        if (zip_cached) {
+            confirm_msg = "Install " + display_name + "?\n\n"
+                          "(Using cached zip on SD card)";
+        } else {
+            confirm_msg = "Download " + display_name + "?\n\n"
+                          "Files will be extracted to " + std::string(staging_path) + ".";
+        }
+
         App::Push<OptionBox>(
-            "Download " + display_name + "?\n\n"
-            "Files will be extracted to " + std::string(staging_path) + ".",
-            "Cancel"_i18n, "Download"_i18n, 1, [this, release, display_name](auto op_index) {
+            confirm_msg,
+            "Cancel"_i18n, zip_cached ? "Install"_i18n : "Download"_i18n, 1, [this, release, display_name](auto op_index) {
                 if (!op_index || *op_index != 1) {
                     return;
                 }
