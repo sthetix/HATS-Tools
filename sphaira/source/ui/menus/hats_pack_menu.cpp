@@ -1031,7 +1031,7 @@ void CacheManagerMenu::DeleteCachedZip() {
     std::string zip_path = std::string(CACHE_PATH) + "/" + entry.filename;
 
     // Show confirmation dialog
-    std::string message = "Delete from cache?\n\n" + entry.display_name + "\n\n" + FormatFileSize(entry.size);
+    std::string message = "Delete from cache?\n\n" + entry.display_name;
     App::Push<OptionBox>(
         message,
         "Cancel"_i18n, "Delete"_i18n, 1, [this, entry, zip_path](auto op_index) {
