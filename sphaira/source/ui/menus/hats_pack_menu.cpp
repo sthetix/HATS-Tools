@@ -1,5 +1,7 @@
 #include "ui/menus/hats_pack_menu.hpp"
 
+#include <algorithm>
+
 #include "ui/nvg_util.hpp"
 #include "ui/option_box.hpp"
 #include "ui/progress_box.hpp"
@@ -225,8 +227,12 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
     }
     fs.CreateDirectoryRecursively(staging_path);
 
-    // Clean up any existing temp file
-    fs.DeleteFile(DOWNLOAD_TEMP);
+    // Build download path: use original asset name for caching
+    std::string download_path = std::string(CACHE_PATH) + "/" + release.asset_name;
+    hats_log_write("hats: download path: %s\n", download_path.c_str());
+
+    // Clean up any existing file at download path
+    fs.DeleteFile(download_path.c_str());
 
     // Backup existing folders if enabled
     if (App::GetBackupEnabled()) {
@@ -246,7 +252,7 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
 
         const auto result = curl::Api().ToFile(
             curl::Url{release.download_url},
-            curl::Path{DOWNLOAD_TEMP},
+            curl::Path{download_path.c_str()},
             curl::OnProgress{pbox->OnDownloadProgressCallback()}
         );
 
@@ -258,11 +264,11 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
         pbox->NewTransfer("Preparing installation...");
         hats_log_write("hats: extracting to staging directory\n");
 
-        bool download_exists = fs.FileExists(DOWNLOAD_TEMP);
+        bool download_exists = fs.FileExists(download_path.c_str());
         hats_log_write("hats: download file exists: %s\n", download_exists ? "yes" : "no");
 
         if (download_exists) {
-            Result rc = thread::TransferUnzipAll(pbox, DOWNLOAD_TEMP, &fs, staging_path,
+            Result rc = thread::TransferUnzipAll(pbox, download_path.c_str(), &fs, staging_path,
                 [&](const fs::FsPath& name, fs::FsPath& path) -> bool {
                     hats_log_write("hats: extracting file: %s -> %s\n", static_cast<const char*>(name), static_cast<const char*>(path));
                     return true;  // Extract all files
@@ -301,8 +307,13 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
         hats_log_write("hats: %s exists: %s\n", static_cast<const char*>(dir), exists ? "yes" : "no");
     }
 
-    // Clean up temp file
-    fs.DeleteFile(DOWNLOAD_TEMP);
+    // Clean up or keep the downloaded zip based on config
+    if (App::GetKeepZipsEnabled()) {
+        hats_log_write("hats: keeping zip in cache: %s\n", download_path.c_str());
+    } else {
+        hats_log_write("hats: deleting zip: %s\n", download_path.c_str());
+        fs.DeleteFile(download_path.c_str());
+    }
 
     hats_log_write("hats: staging complete\n");
     return 0;
@@ -340,6 +351,9 @@ PackMenu::PackMenu() : MenuBase{"HATS Pack Releases", MenuFlag_None} {
             if (!m_releases.empty() && !m_loading) {
                 ShowReleaseDetails();
             }
+        }}),
+        std::make_pair(Button::L2, Action{"Cache"_i18n, [this](){
+            ShowCacheManager();
         }})
     );
 
@@ -533,6 +547,10 @@ void PackMenu::DownloadAndInstall() {
                             [this, display_name](Result rc) {
                                 if (R_SUCCEEDED(rc)) {
                                     hats_log_write("hats: download complete, ready to launch\n");
+                                    // Show notification if zip was saved to cache
+                                    if (App::GetKeepZipsEnabled()) {
+                                        App::Notify("Zip saved to cache"_i18n);
+                                    }
                                     ShowLaunchDialog();
                                 } else {
                                     App::Push<ErrorBox>(rc, "Failed to download " + display_name);
@@ -560,6 +578,10 @@ void PackMenu::DownloadAndInstall() {
                     [this, display_name](Result rc) {
                         if (R_SUCCEEDED(rc)) {
                             hats_log_write("hats: download complete, ready to launch\n");
+                            // Show notification if zip was saved to cache
+                            if (App::GetKeepZipsEnabled()) {
+                                App::Notify("Zip saved to cache"_i18n);
+                            }
                             ShowLaunchDialog();
                         } else {
                             App::Push<ErrorBox>(rc, "Failed to download " + display_name);
@@ -652,6 +674,364 @@ void PackMenu::ShowReleaseDetails() {
         }
         DownloadAndInstall();
     });
+}
+
+void PackMenu::ShowCacheManager() {
+    App::Push<CacheManagerMenu>();
+}
+
+// ============================================================================
+// Cache Manager Menu Implementation
+// ============================================================================
+
+namespace {
+    // Helper function to format file size
+    std::string FormatFileSize(u64 size) {
+        if (size < 1024) {
+            return std::to_string(size) + " B";
+        } else if (size < 1024 * 1024) {
+            return std::to_string(size / 1024) + " KB";
+        } else if (size < 1024 * 1024 * 1024) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.1f MB", size / 1024.0 / 1024.0);
+            return std::string(buf);
+        } else {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.2f GB", size / 1024.0 / 1024.0 / 1024.0);
+            return std::string(buf);
+        }
+    }
+}
+
+CacheManagerMenu::CacheManagerMenu() : MenuBase{"Cached Downloads", MenuFlag_None} {
+    hats_log_write("hats: opening cache manager\n");
+
+    // Scan for cached zips
+    ScanCachedZips();
+
+    this->SetActions(
+        std::make_pair(Button::A, Action{"Reinstall"_i18n, [this](){
+            if (!m_cached_zips.empty()) {
+                ReinstallFromCache();
+            }
+        }}),
+        std::make_pair(Button::B, Action{"Back"_i18n, [this](){
+            SetPop();
+        }}),
+        std::make_pair(Button::X, Action{"Delete"_i18n, [this](){
+            if (!m_cached_zips.empty()) {
+                DeleteCachedZip();
+            }
+        }})
+    );
+
+    const Vec4 v{75, GetY() + 1.f + 42.f, 1220.f - 150.f, 60.f};
+    m_list = std::make_unique<List>(1, 8, m_pos, v);
+    m_list->SetLayout(List::Layout::GRID);
+}
+
+CacheManagerMenu::~CacheManagerMenu() {
+    // Cleanup
+}
+
+void CacheManagerMenu::Update(Controller* controller, TouchInfo* touch) {
+    MenuBase::Update(controller, touch);
+
+    if (!m_cached_zips.empty()) {
+        m_list->OnUpdate(controller, touch, m_index, m_cached_zips.size(), [this](bool touch, auto i) {
+            if (touch && m_index == i) {
+                FireAction(Button::A);
+            } else {
+                App::PlaySoundEffect(SoundEffect::Focus);
+                SetIndex(i);
+            }
+        });
+    }
+}
+
+void CacheManagerMenu::Draw(NVGcontext* vg, Theme* theme) {
+    MenuBase::Draw(vg, theme);
+
+    if (m_empty) {
+        gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f, 24.f,
+            NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
+            theme->GetColour(ThemeEntryID_TEXT_INFO),
+            "No cached HATS pack found");
+        return;
+    }
+
+    constexpr float text_xoffset{15.f};
+
+    m_list->Draw(vg, theme, m_cached_zips.size(), [this](auto* vg, auto* theme, auto& v, auto i) {
+        const auto& [x, y, w, h] = v;
+        const auto& entry = m_cached_zips[i];
+
+        auto text_id = ThemeEntryID_TEXT;
+        if (m_index == i) {
+            text_id = ThemeEntryID_TEXT_SELECTED;
+            gfx::drawRectOutline(vg, theme, 4.f, v);
+        } else {
+            if (i != m_cached_zips.size() - 1) {
+                gfx::drawRect(vg, x, y + h, w, 1.f, theme->GetColour(ThemeEntryID_LINE_SEPARATOR));
+            }
+        }
+
+        // Display filename
+        gfx::drawTextArgs(vg, x + text_xoffset, y + h / 2.f, 20.f,
+            NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE,
+            theme->GetColour(text_id),
+            "%s", entry.display_name.c_str());
+
+        // Size on the right
+        gfx::drawTextArgs(vg, x + w - text_xoffset, y + h / 2.f, 16.f,
+            NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
+            theme->GetColour(ThemeEntryID_TEXT_INFO),
+            "%s", FormatFileSize(entry.size).c_str());
+    });
+
+    // Draw storage info at the bottom
+    if (m_total_size > 0) {
+        gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT - 30.f, 16.f,
+            NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
+            theme->GetColour(ThemeEntryID_TEXT_INFO),
+            "Cache: %s (%zu files)", FormatFileSize(m_total_size).c_str(), m_cached_zips.size());
+    }
+}
+
+void CacheManagerMenu::SetIndex(s64 index) {
+    m_index = index;
+    if (!m_index) {
+        m_list->SetYoff(0);
+    }
+}
+
+void CacheManagerMenu::ScanCachedZips() {
+    fs::FsNativeSd fs;
+    if (R_FAILED(fs.GetFsOpenResult())) {
+        hats_log_write("hats: failed to open SD for cache scan\n");
+        m_empty = true;
+        return;
+    }
+
+    m_cached_zips.clear();
+    m_total_size = 0;
+
+    // Check if cache directory exists
+    if (!fs.DirExists(CACHE_PATH)) {
+        hats_log_write("hats: cache directory does not exist\n");
+        m_empty = true;
+        return;
+    }
+
+    // Open directory and scan for .zip files
+    fs::Dir dir;
+    if (R_FAILED(fs.OpenDirectory(CACHE_PATH, FsDirOpenMode_ReadDirs | FsDirOpenMode_ReadFiles, &dir))) {
+        hats_log_write("hats: failed to open cache directory\n");
+        m_empty = true;
+        return;
+    }
+
+    std::vector<FsDirectoryEntry> entries;
+    if (R_FAILED(dir.ReadAll(entries))) {
+        hats_log_write("hats: failed to read cache directory entries\n");
+        m_empty = true;
+        return;
+    }
+
+    // Filter for .zip files
+    for (const auto& entry : entries) {
+        if (entry.type == FsDirEntryType_File) {
+            std::string name = entry.name;
+            if (name.size() > 4 && name.substr(name.size() - 4) == ".zip") {
+                // Use file_size from directory entry (cast to u64)
+                u64 file_size = static_cast<u64>(entry.file_size);
+                CachedZipEntry cached_entry;
+                cached_entry.filename = name;
+                cached_entry.display_name = name;
+                cached_entry.size = file_size;
+                m_cached_zips.push_back(cached_entry);
+                m_total_size += file_size;
+                hats_log_write("hats: found cached zip: %s (%llu bytes)\n", name.c_str(), file_size);
+            }
+        }
+    }
+
+    // Sort by filename (which contains date in ISO format for natural sorting)
+    std::sort(m_cached_zips.begin(), m_cached_zips.end(),
+        [](const CachedZipEntry& a, const CachedZipEntry& b) {
+            return a.filename > b.filename; // Descending order (newest first)
+        });
+
+    m_empty = m_cached_zips.empty();
+    hats_log_write("hats: cache scan complete, found %zu zips, total size: %llu bytes\n",
+        m_cached_zips.size(), m_total_size);
+}
+
+void CacheManagerMenu::ReinstallFromCache() {
+    if (m_cached_zips.empty() || m_index >= (s64)m_cached_zips.size()) {
+        return;
+    }
+
+    const auto& entry = m_cached_zips[m_index];
+    std::string zip_path = std::string(CACHE_PATH) + "/" + entry.filename;
+
+    // Verify the zip still exists
+    fs::FsNativeSd fs;
+    if (!fs.FileExists(zip_path.c_str())) {
+        App::Push<ErrorBox>(0x666, "Cached zip not found. It may have been deleted.");
+        hats_log_write("hats: cached zip not found: %s\n", zip_path.c_str());
+        // Refresh the list
+        ScanCachedZips();
+        return;
+    }
+
+    // Show confirmation dialog
+    std::string message = "Reinstall from cache?\n\n" + entry.display_name;
+    App::Push<OptionBox>(
+        message,
+        "Cancel"_i18n, "Reinstall"_i18n, 1, [this, entry, zip_path](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            // Create a fake ReleaseEntry for reinstall
+            ReleaseEntry release;
+            release.asset_name = entry.filename;
+            release.name = entry.display_name;
+            release.size = entry.size;
+            // Set download_url to empty to indicate we're using local file
+            release.download_url = "";
+
+            App::Push<ProgressBox>(0, "Reinstalling"_i18n, entry.display_name,
+                [this, release, zip_path](auto pbox) -> Result {
+                    fs::FsNativeSd fs;
+                    R_TRY(fs.GetFsOpenResult());
+
+                    auto app = App::GetApp();
+                    const fs::FsPath staging_path = app->m_installer_staging_path.Get().c_str();
+
+                    // Clean up staging directory
+                    hats_log_write("hats: cleaning staging directory: %s\n", static_cast<const char*>(staging_path));
+                    if (fs.DirExists(staging_path)) {
+                        Result rc = fs.DeleteDirectoryRecursively(staging_path);
+                        if (R_FAILED(rc)) {
+                            hats_log_write("hats: warning - failed to delete staging directory: 0x%X\n", rc);
+                        }
+                    }
+                    fs.CreateDirectoryRecursively(staging_path);
+
+                    // Extract from cached zip
+                    if (!pbox->ShouldExit()) {
+                        pbox->NewTransfer("Extracting cached pack...");
+                        hats_log_write("hats: extracting from cache: %s\n", zip_path.c_str());
+
+                        Result rc = thread::TransferUnzipAll(pbox, zip_path.c_str(), &fs, staging_path,
+                            [&](const fs::FsPath& name, fs::FsPath& path) -> bool {
+                                return true;  // Extract all files
+                            });
+
+                        if (R_FAILED(rc)) {
+                            hats_log_write("hats: extraction failed: 0x%X\n", rc);
+                            return rc;
+                        }
+                    }
+
+                    // Commit file system changes
+                    if (!pbox->ShouldExit()) {
+                        R_TRY(fs.Commit());
+                    }
+
+                    return 0;
+                },
+                [this, entry](Result rc) {
+                    if (R_SUCCEEDED(rc)) {
+                        hats_log_write("hats: reinstall from cache complete\n");
+                        // Show launch dialog similar to normal install
+                        App::Push<OptionBox>(
+                            "HATS Pack ready!\n\nLaunch HATS installer?",
+                            "Back"_i18n, "Launch"_i18n, 1, [](auto op_index) {
+                                if (!op_index || *op_index != 1) {
+                                    return;
+                                }
+
+                                auto app = App::GetApp();
+                                const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
+
+                                App::Push<ProgressBox>(0, "Preparing..."_i18n, "Configuring hekate",
+                                    [installer_payload](auto pbox) -> Result {
+                                        fs::FsNativeSd fs;
+
+                                        if (!fs.FileExists(installer_payload)) {
+                                            return 0x666;
+                                        }
+
+                                        pbox->NewTransfer("Modifying hekate_ipl.ini");
+                                        bool success = utils::setHekateAutobootPayload(static_cast<const char*>(installer_payload));
+
+                                        if (!success) {
+                                            return 0x667;
+                                        }
+
+                                        return 0;
+                                    },
+                                    [](Result rc) {
+                                        if (R_FAILED(rc)) {
+                                            App::Push<ErrorBox>(rc, "Failed to configure hekate");
+                                            return;
+                                        }
+
+                                        spsmInitialize();
+                                        spsmShutdown(true);
+                                    }
+                                );
+                            }
+                        );
+                    } else {
+                        App::Push<ErrorBox>(rc, "Failed to extract " + entry.display_name);
+                    }
+                }
+            );
+        }
+    );
+}
+
+void CacheManagerMenu::DeleteCachedZip() {
+    if (m_cached_zips.empty() || m_index >= (s64)m_cached_zips.size()) {
+        return;
+    }
+
+    const auto& entry = m_cached_zips[m_index];
+    std::string zip_path = std::string(CACHE_PATH) + "/" + entry.filename;
+
+    // Show confirmation dialog
+    std::string message = "Delete from cache?\n\n" + entry.display_name + "\n\n" + FormatFileSize(entry.size);
+    App::Push<OptionBox>(
+        message,
+        "Cancel"_i18n, "Delete"_i18n, 1, [this, entry, zip_path](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            fs::FsNativeSd fs;
+            Result rc = fs.DeleteFile(zip_path.c_str());
+
+            if (R_SUCCEEDED(rc)) {
+                hats_log_write("hats: deleted cached zip: %s\n", zip_path.c_str());
+                App::Notify(i18n::Reorder("Deleted ", entry.display_name));
+
+                // Refresh the list
+                ScanCachedZips();
+
+                // Adjust index if needed
+                if (m_index >= (s64)m_cached_zips.size()) {
+                    SetIndex(std::max<s64>(0, m_cached_zips.size() - 1));
+                }
+            } else {
+                hats_log_write("hats: failed to delete cached zip: 0x%X\n", rc);
+                App::Push<ErrorBox>(rc, "Failed to delete " + entry.display_name);
+            }
+        }
+    );
 }
 
 } // namespace sphaira::ui::menu::hats

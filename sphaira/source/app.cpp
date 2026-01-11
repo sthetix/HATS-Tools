@@ -698,6 +698,10 @@ auto App::GetBackupEnabled() -> bool {
     return g_app->m_backup_enabled.Get();
 }
 
+auto App::GetKeepZipsEnabled() -> bool {
+    return g_app->m_keep_zips.Get();
+}
+
 auto App::GetReplaceHbmenuEnable() -> bool {
     return g_app->m_replace_hbmenu.Get();
 }
@@ -742,6 +746,12 @@ void App::SetSkipBackupWarning(bool enable) {
 void App::SetBackupEnabled(bool enable) {
     if (App::GetBackupEnabled() != enable) {
         g_app->m_backup_enabled.Set(enable);
+    }
+}
+
+void App::SetKeepZipsEnabled(bool enable) {
+    if (App::GetKeepZipsEnabled() != enable) {
+        g_app->m_keep_zips.Set(enable);
     }
 }
 
@@ -1339,6 +1349,7 @@ App::App(const char* argv0) {
             if (app->m_log_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_skip_backup_warning.LoadFrom(Key, Value)) {}
             else if (app->m_backup_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_keep_zips.LoadFrom(Key, Value)) {}
             else if (app->m_replace_hbmenu.LoadFrom(Key, Value)) {}
             else if (app->m_default_music.LoadFrom(Key, Value)) {}
             else if (app->m_theme_path.LoadFrom(Key, Value)) {}
@@ -1834,6 +1845,10 @@ void App::DisplayAdvancedOptions(bool left_side) {
     options->Add<ui::SidebarEntryBool>("Skip backup reminder"_i18n, App::GetSkipBackupWarning(), [](bool& enable){
         App::SetSkipBackupWarning(enable);
     }, "Don't show backup warning before HATS installation"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Keep downloaded zips"_i18n, App::GetKeepZipsEnabled(), [](bool& enable){
+        App::SetKeepZipsEnabled(enable);
+    }, "Keep downloaded HATS pack zips in cache for reinstallation"_i18n);
 
     // HIDDEN: options->Add<ui::SidebarEntryBool>("Replace hbmenu on exit"_i18n, App::GetReplaceHbmenuEnable(), [](bool& enable){
     //     App::SetReplaceHbmenuEnable(enable);

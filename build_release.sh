@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Get version from CMakeLists.txt
+VERSION=$(grep "set(HATS_TOOLS_VERSION" sphaira/CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/')
+
 rm -rf build
 rm -rf build/release
 
@@ -20,5 +23,5 @@ rm -rf out
 mkdir -p out/switch/hats-tools/
 cp build/Release/hats-tools.nro out/switch/hats-tools/hats-tools.nro
 pushd out
-zip -r9 hats-tools.zip switch
+zip -r9 hats-tools-$VERSION.zip switch
 popd

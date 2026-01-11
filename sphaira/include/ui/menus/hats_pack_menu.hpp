@@ -20,6 +20,12 @@ struct ReleaseEntry {
     bool prerelease{};
 };
 
+struct CachedZipEntry {
+    std::string filename;    // Full filename (e.g., "HATS-20250110-hash.zip")
+    std::string display_name; // Display name (extracted from filename)
+    u64 size{};              // File size in bytes
+};
+
 struct PackMenu final : MenuBase {
     PackMenu();
     ~PackMenu();
@@ -37,6 +43,7 @@ private:
     void UpdateSubheading();
     void ShowReleaseDetails();
     void ShowLaunchDialog();
+    void ShowCacheManager();
 
 private:
     std::vector<ReleaseEntry> m_releases;
@@ -46,6 +53,30 @@ private:
     bool m_loading{false};
     bool m_loaded{false};
     std::string m_error_message;
+};
+
+// Cache Manager Menu for viewing and managing cached zips
+struct CacheManagerMenu final : MenuBase {
+    CacheManagerMenu();
+    ~CacheManagerMenu();
+
+    auto GetShortTitle() const -> const char* override { return "Cached Downloads"; }
+    void Update(Controller* controller, TouchInfo* touch) override;
+    void Draw(NVGcontext* vg, Theme* theme) override;
+
+private:
+    void SetIndex(s64 index);
+    void ScanCachedZips();
+    void ReinstallFromCache();
+    void DeleteCachedZip();
+
+private:
+    std::vector<CachedZipEntry> m_cached_zips;
+    s64 m_index{};
+    std::unique_ptr<List> m_list;
+
+    bool m_empty{true};
+    u64 m_total_size{};
 };
 
 } // namespace sphaira::ui::menu::hats

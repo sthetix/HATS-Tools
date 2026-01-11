@@ -86,6 +86,7 @@ public:
     static auto GetLogEnable() -> bool;
     static auto GetSkipBackupWarning() -> bool;
     static auto GetBackupEnabled() -> bool;
+    static auto GetKeepZipsEnabled() -> bool;
     static auto GetReplaceHbmenuEnable() -> bool;
     static auto GetThemeMusicEnable() -> bool;
     static auto GetTextScrollSpeed() -> long;
@@ -98,6 +99,7 @@ public:
     static void SetLogEnable(bool enable);
     static void SetSkipBackupWarning(bool enable);
     static void SetBackupEnabled(bool enable);
+    static void SetKeepZipsEnabled(bool enable);
     static void SetReplaceHbmenuEnable(bool enable);
     static void SetThemeMusicEnable(bool enable);
     static void SetTextScrollSpeed(long index);
@@ -261,6 +263,7 @@ public:
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", false};
     option::OptionBool m_skip_backup_warning{INI_SECTION, "skip_backup_warning", false};
     option::OptionBool m_backup_enabled{INI_SECTION, "backup_enabled", true};
+    option::OptionBool m_keep_zips{INI_SECTION, "keep_zips", false};
     option::OptionBool m_replace_hbmenu{INI_SECTION, "replace_hbmenu", false};
     option::OptionString m_default_music{INI_SECTION, "default_music", "/config/hats-tools/themes/default_music.bfstm"};
     option::OptionString m_theme_path{INI_SECTION, "theme", DEFAULT_THEME_PATH};
