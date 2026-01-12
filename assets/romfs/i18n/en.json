@@ -105,6 +105,12 @@
   "Fast": "Fast",
   "Logging": "Logging",
   "Logs to /config/hats-tools/log.txt": "Logs to /config/hats-tools/log.txt",
+  "God Mode": "God Mode",
+  "god_mode_info": [
+    "Allows deletion of protected system files and components.\n",
+    "This includes Atmosphere, Hekate, and other critical files.\n",
+    "WARNING: Only enable if you know what you're doing!"
+  ],
   "Replace hbmenu on exit": "Replace hbmenu on exit",
   "hbmenu_replace_info": [
     "When enabled, it replaces /hbmenu.nro with HATS-tools, creating a backup of hbmenu to /switch/hbmenu.nro\n",

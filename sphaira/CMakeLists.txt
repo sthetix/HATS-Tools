@@ -32,7 +32,7 @@ option(ENABLE_DEVOPTAB_SFTP "" OFF)
 # MAJOR: incompatible changes
 # MINOR: new features (backwards compatible)
 # PATCH: bug fixes (backwards compatible)
-set(HATS_TOOLS_VERSION "1.5.2")
+set(HATS_TOOLS_VERSION "1.5.3")
 set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
 project(hats-tools

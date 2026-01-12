@@ -710,6 +710,10 @@ auto App::GetThemeMusicEnable() -> bool {
     return g_app->m_theme_music.Get();
 }
 
+auto App::GetGodModeEnabled() -> bool {
+    return g_app->m_god_mode.Get();
+}
+
 auto App::GetTextScrollSpeed() -> long {
     return g_app->m_text_scroll_speed.Get();
 }
@@ -863,6 +867,12 @@ void App::SetThemeMusicEnable(bool enable) {
         } else {
             g_app->CloseThemeBackgroundMusic();
         }
+    }
+}
+
+void App::SetGodModeEnable(bool enable) {
+    if (App::GetGodModeEnabled() != enable) {
+        g_app->m_god_mode.Set(enable);
     }
 }
 
@@ -1849,6 +1859,15 @@ void App::DisplayAdvancedOptions(bool left_side) {
     options->Add<ui::SidebarEntryBool>("Keep downloaded zips"_i18n, App::GetKeepZipsEnabled(), [](bool& enable){
         App::SetKeepZipsEnabled(enable);
     }, "Keep downloaded HATS pack zips in cache for reinstallation"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("God Mode"_i18n, App::GetGodModeEnabled(), [](bool& enable){
+        App::SetGodModeEnable(enable);
+    },  i18n::get("god_mode_info",
+            "Allows deletion of protected system files and components.\n"
+            "This includes Atmosphere, Hekate, and other critical files.\n\n"
+            "WARNING: Only enable if you know what you're doing!"
+        )
+    );
 
     // HIDDEN: options->Add<ui::SidebarEntryBool>("Replace hbmenu on exit"_i18n, App::GetReplaceHbmenuEnable(), [](bool& enable){
     //     App::SetReplaceHbmenuEnable(enable);

@@ -1,6 +1,7 @@
 #include "manifest.hpp"
 #include "yyjson_helper.hpp"
 #include "log.hpp"
+#include "app.hpp"
 
 #include <yyjson.h>
 #include <cstring>
@@ -320,6 +321,11 @@ int removeComponents(Manifest& m, const std::vector<std::string>& ids, fs::Fs* f
 }
 
 bool isProtectedComponent(const std::string& id) {
+    // God Mode bypasses all component protections
+    if (sphaira::App::GetGodModeEnabled()) {
+        return false;
+    }
+
     for (const char* protected_id : PROTECTED_COMPONENTS) {
         if (id == protected_id) {
             return true;

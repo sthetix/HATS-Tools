@@ -14,14 +14,24 @@ build_preset() {
     cmake --build --preset $1
 }
 
+echo "=== Building HATS-Tools NRO ==="
 build_preset Release
 
 rm -rf out
 
+# --- PAYLOAD --- #
+echo "=== Building HATS-Installer Payload ==="
+(cd payload && make clean && make)
 
-# --- SWITCH --- #
+# --- PACKAGE --- #
 mkdir -p out/switch/hats-tools/
+mkdir -p out/bootloader/payloads/
+
 cp build/Release/hats-tools.nro out/switch/hats-tools/hats-tools.nro
+cp payload/output/hats-installer.bin out/bootloader/payloads/hats-installer.bin
+
 pushd out
-zip -r9 hats-tools-$VERSION.zip switch
+zip -r9 hats-tools-$VERSION.zip switch bootloader
 popd
+
+echo "=== Release built: out/hats-tools-$VERSION.zip ==="

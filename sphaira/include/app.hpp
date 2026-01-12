@@ -89,6 +89,7 @@ public:
     static auto GetKeepZipsEnabled() -> bool;
     static auto GetReplaceHbmenuEnable() -> bool;
     static auto GetThemeMusicEnable() -> bool;
+    static auto GetGodModeEnabled() -> bool;
     static auto GetTextScrollSpeed() -> long;
 
     // NSZ compression options
@@ -102,6 +103,7 @@ public:
     static void SetKeepZipsEnabled(bool enable);
     static void SetReplaceHbmenuEnable(bool enable);
     static void SetThemeMusicEnable(bool enable);
+    static void SetGodModeEnable(bool enable);
     static void SetTextScrollSpeed(long index);
 
     static void PlaySoundEffect(SoundEffect effect);
@@ -272,6 +274,7 @@ public:
     option::OptionString m_left_menu{INI_SECTION, "left_side_menu", "FileBrowser"};
     option::OptionString m_right_menu{INI_SECTION, "right_side_menu", "Appstore"};
     option::OptionBool m_progress_boost_mode{INI_SECTION, "progress_boost_mode", true};
+    option::OptionBool m_god_mode{INI_SECTION, "god_mode", false};
 
     // todo: move this into it's own menu
     option::OptionLong m_text_scroll_speed{"accessibility", "text_scroll_speed", 1}; // normal

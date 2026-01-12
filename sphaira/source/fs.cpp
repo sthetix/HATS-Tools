@@ -2,6 +2,7 @@
 #include "defines.hpp"
 #include "ui/nvg_util.hpp"
 #include "log.hpp"
+#include "app.hpp"
 
 #include <switch.h>
 #include <cstdio>
@@ -94,6 +95,11 @@ bool is_read_only_file(std::string_view path) {
 }
 
 bool is_read_only(std::string_view path) {
+    // God Mode bypasses all read-only protections
+    if (sphaira::App::GetGodModeEnabled()) {
+        return false;
+    }
+
     if (is_read_only_root(path)) {
         return true;
     }

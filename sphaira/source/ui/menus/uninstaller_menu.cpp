@@ -131,10 +131,11 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
     MenuBase::Draw(vg, theme);
 
     // Draw warning header
+    const bool god_mode = App::GetGodModeEnabled();
     gfx::drawTextArgs(vg, 80.f, GetY() + 10.f, 16.f,
         NVG_ALIGN_LEFT | NVG_ALIGN_TOP,
-        theme->GetColour(ThemeEntryID_TEXT_INFO),
-        "Atmosphere and Hekate are protected and cannot be removed.");
+        god_mode ? theme->GetColour(ThemeEntryID_ERROR) : theme->GetColour(ThemeEntryID_TEXT_INFO),
+        god_mode ? "GOD MODE: All components can be removed!" : "Atmosphere and Hekate are protected and cannot be removed.");
 
     // Draw selection count
     size_t selected = GetSelectedCount();
