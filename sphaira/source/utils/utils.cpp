@@ -67,167 +67,136 @@ std::string formatSizeNetwork(u64 size) {
 namespace {
     constexpr const char* HEKATE_INI_PATH = "/bootloader/hekate_ipl.ini";
     constexpr const char* HEKATE_INI_BAK_PATH = "/bootloader/hekate_ipl.ini.bak";
+    constexpr const char* HEKATE_INI_MOD_PATH = "/config/hats-tools/hekate_ipl_mod.ini";
+    constexpr const char* HEKATE_INI_MOD_ROMFS = "romfs:/hekate_ipl_mod.ini";
 
-    // Find the position of a key in a section, returns nullptr if not found
-    const char* findKeyInSection(const char* content, const char* sectionStart, const char* key) {
-        const char* p = sectionStart;
-        while (*p && *p != '[') {  // Stop at next section
-            if (strncmp(p, key, strlen(key)) == 0 && p[strlen(key)] == '=') {
-                return p;
-            }
-            // Move to next line
-            while (*p && *p != '\n') p++;
-            if (*p == '\n') p++;
+    // Simple file copy function
+    bool copyFile(const char* src_path, const char* dst_path) {
+        FILE* src = fopen(src_path, "rb");
+        if (!src) {
+            log_write("copyFile: failed to open source: %s\n", src_path);
+            return false;
         }
-        return nullptr;
+
+        FILE* dst = fopen(dst_path, "wb");
+        if (!dst) {
+            log_write("copyFile: failed to open destination: %s\n", dst_path);
+            fclose(src);
+            return false;
+        }
+
+        // Copy file in chunks
+        fseek(src, 0, SEEK_END);
+        long size = ftell(src);
+        fseek(src, 0, SEEK_SET);
+
+        char buffer[4096];
+        size_t total_copied = 0;
+        while (total_copied < (size_t)size) {
+            size_t to_read = sizeof(buffer);
+            if (to_read > (size_t)(size - total_copied)) {
+                to_read = size - total_copied;
+            }
+            size_t read = fread(buffer, 1, to_read, src);
+            if (read == 0) break;
+            fwrite(buffer, 1, read, dst);
+            total_copied += read;
+        }
+
+        fclose(src);
+        fflush(dst);
+        fsdevCommitDevice("sdmc");
+        fclose(dst);
+
+        log_write("copyFile: copied %s -> %s (%zu bytes)\n", src_path, dst_path, total_copied);
+        return true;
+    }
+
+    // Ensure the pre-made modded ini exists on SD card
+    bool ensureHekateModIniExists() {
+        // Check if it already exists on SD
+        FILE* f_check = fopen(HEKATE_INI_MOD_PATH, "rb");
+        if (f_check) {
+            fclose(f_check);
+            log_write("ensureHekateModIniExists: %s already exists\n", HEKATE_INI_MOD_PATH);
+            return true;
+        }
+
+        // Extract from romfs to SD card
+        log_write("ensureHekateModIniExists: extracting %s to %s\n", HEKATE_INI_MOD_ROMFS, HEKATE_INI_MOD_PATH);
+
+        // Create directory if needed
+        fs::CreateDirectoryRecursively(HEKATE_INI_MOD_PATH);
+
+        return copyFile(HEKATE_INI_MOD_ROMFS, HEKATE_INI_MOD_PATH);
     }
 }
 
 // Set hekate_ipl.ini to auto-boot HATS installer payload
+// This is a simplified version that:
+// 1. Ensures the pre-made modded ini exists on SD card
+// 2. Backs up the original hekate_ipl.ini to .bak
+// 3. Copies the pre-made modded ini to hekate_ipl.ini
 bool setHekateAutobootPayload(const char* payload_path) {
     log_write("setHekateAutobootPayload: setting up autoboot for %s\n", payload_path);
 
-    // Step 1: Read current hekate_ipl.ini
-    FILE* f_ini = fopen(HEKATE_INI_PATH, "rb");
-    std::string ini_content;
-
-    if (f_ini) {
-        fseek(f_ini, 0, SEEK_END);
-        long size = ftell(f_ini);
-        fseek(f_ini, 0, SEEK_SET);
-
-        if (size > 0) {
-            ini_content.resize(size);
-            fread(ini_content.data(), 1, size, f_ini);
-        }
-        fclose(f_ini);
-    } else {
-        log_write("setHekateAutobootPayload: hekate_ipl.ini not found, creating new\n");
-    }
-
-    // Step 2: Backup original file
-    FILE* f_bak = fopen(HEKATE_INI_BAK_PATH, "wb");
-    if (!f_bak) {
-        log_write("setHekateAutobootPayload: failed to create backup\n");
+    // Ensure the pre-made modded ini exists on SD card (extract from romfs if needed)
+    if (!ensureHekateModIniExists()) {
+        log_write("setHekateAutobootPayload: failed to ensure modded ini exists\n");
         return false;
     }
 
-    if (!ini_content.empty()) {
-        fwrite(ini_content.data(), 1, ini_content.size(), f_bak);
-    } else {
-        // Write empty backup if original didn't exist
-        const char* empty = "";
-        fwrite(empty, 1, 0, f_bak);
+    // Check if backup already exists
+    bool backup_exists = false;
+    FILE* f_bak_check = fopen(HEKATE_INI_BAK_PATH, "rb");
+    if (f_bak_check) {
+        fseek(f_bak_check, 0, SEEK_END);
+        long bak_size = ftell(f_bak_check);
+        fclose(f_bak_check);
+        if (bak_size > 0) {
+            backup_exists = true;
+            log_write("setHekateAutobootPayload: backup already exists (%ld bytes), preserving it\n", bak_size);
+        }
     }
-    fclose(f_bak);
-    log_write("setHekateAutobootPayload: backed up to %s\n", HEKATE_INI_BAK_PATH);
 
-    // Step 3: Build new ini content
-    std::string new_ini;
+    // Create backup if it doesn't exist
+    if (!backup_exists) {
+        // Read original hekate_ipl.ini
+        FILE* f_ini = fopen(HEKATE_INI_PATH, "rb");
+        if (f_ini) {
+            fseek(f_ini, 0, SEEK_END);
+            long size = ftell(f_ini);
+            fseek(f_ini, 0, SEEK_SET);
 
-    // Find or create [config] section
-    const char* config_section = strstr(ini_content.c_str(), "[config]");
-    size_t config_end = 0;
+            if (size > 0) {
+                std::vector<u8> buffer(size);
+                fread(buffer.data(), 1, size, f_ini);
+                fclose(f_ini);
 
-    if (config_section) {
-        // Find end of [config] section (next '[' or end of file)
-        const char* p = config_section + 8; // Skip "[config]"
-        while (*p && *p != '[') {
-            if (*p == '\n') {
-                const char* next_line = p + 1;
-                if (*next_line == '[' || *next_line == '\0') {
-                    break;
+                // Write backup
+                FILE* f_bak = fopen(HEKATE_INI_BAK_PATH, "wb");
+                if (f_bak) {
+                    fwrite(buffer.data(), 1, size, f_bak);
+                    fflush(f_bak);
+                    fsdevCommitDevice("sdmc");
+                    fclose(f_bak);
+                    log_write("setHekateAutobootPayload: created backup (%ld bytes)\n", size);
                 }
+            } else {
+                fclose(f_ini);
             }
-            p++;
+        } else {
+            log_write("setHekateAutobootPayload: original hekate_ipl.ini not found\n");
         }
-        config_end = p - ini_content.c_str();
-
-        // Copy everything up to and including [config] section
-        new_ini.append(ini_content.c_str(), config_end);
-    } else {
-        // No [config] section, create one
-        new_ini = "[config]\n";
     }
 
-    // Step 4: Add/update autoboot settings
-    // Check if autoboot key exists and update it, otherwise append
-    const char* autoboot_pos = config_section ?
-        findKeyInSection(new_ini.c_str(), new_ini.c_str(), "autoboot") : nullptr;
-
-    if (autoboot_pos) {
-        // Replace existing autoboot value
-        std::string modified = new_ini;
-        size_t pos = autoboot_pos - new_ini.c_str();
-        size_t line_start = pos;
-
-        // Find start of line (or section start)
-        while (line_start > 0 && modified[line_start - 1] != '\n') {
-            line_start--;
-        }
-
-        // Find end of line
-        size_t line_end = pos;
-        while (line_end < modified.size() && modified[line_end] != '\n') {
-            line_end++;
-        }
-
-        // Replace the line
-        modified.replace(line_start, line_end - line_start, "autoboot=1\n");
-        new_ini = modified;
-    } else {
-        // Append autoboot setting
-        new_ini += "autoboot=1\n";
-    }
-
-    // Similar for bootwait
-    const char* bootwait_pos = config_section ?
-        findKeyInSection(new_ini.c_str(), new_ini.c_str(), "bootwait") : nullptr;
-
-    if (bootwait_pos) {
-        std::string modified = new_ini;
-        size_t pos = bootwait_pos - new_ini.c_str();
-        size_t line_start = pos;
-        while (line_start > 0 && modified[line_start - 1] != '\n') {
-            line_start--;
-        }
-        size_t line_end = pos;
-        while (line_end < modified.size() && modified[line_end] != '\n') {
-            line_end++;
-        }
-        modified.replace(line_start, line_end - line_start, "bootwait=0\n");
-        new_ini = modified;
-    } else {
-        new_ini += "bootwait=0\n";
-    }
-
-    // Step 5: Add HATS Installer section as first entry (right after [config])
-    new_ini += "\n[HATS Installer]\n";
-    new_ini += "payload=";
-    new_ini += payload_path;
-    new_ini += "\n";
-
-    // Step 6: Append the rest of the original ini (after [config] section)
-    if (config_section && config_end > 0) {
-        const char* rest = ini_content.c_str() + config_end;
-        // Skip leading newlines
-        while (*rest == '\n') rest++;
-        new_ini += "\n";
-        new_ini += rest;
-    }
-
-    // Step 7: Write new ini file
-    FILE* f_out = fopen(HEKATE_INI_PATH, "wb");
-    if (!f_out) {
-        log_write("setHekateAutobootPayload: failed to open %s for writing\n", HEKATE_INI_PATH);
+    // Copy the pre-made modded ini to hekate_ipl.ini
+    if (!copyFile(HEKATE_INI_MOD_PATH, HEKATE_INI_PATH)) {
+        log_write("setHekateAutobootPayload: failed to copy modded ini\n");
         return false;
     }
-
-    fwrite(new_ini.data(), 1, new_ini.size(), f_out);
-    fclose(f_out);
 
     fsdevCommitDevice("sdmc");
-
     log_write("setHekateAutobootPayload: hekate_ipl.ini updated successfully\n");
     return true;
 }

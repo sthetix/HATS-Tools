@@ -52,7 +52,7 @@ pack_url=https://api.github.com/repos/sthetix/HATS/releases
 
 [installer]
 # HATS installer payload location
-payload=/bootloader/payloads/hats-installer.bin
+payload=/switch/hats-tools/hats-installer.bin
 
 # Staging path for HATS extraction
 staging_path=/hats-staging

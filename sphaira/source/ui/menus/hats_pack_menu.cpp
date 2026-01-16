@@ -32,7 +32,7 @@ constexpr const char* RELEASES_CACHE = "/switch/hats-tools/cache/hats/releases.j
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/download.zip";
 
 // HATS paths are now configurable via config.ini under [hats] section
-// Defaults: installer_payload=/bootloader/payloads/hats-installer.bin
+// Defaults: installer_payload=/switch/hats-tools/hats-installer.bin
 //           staging_path=/hats-staging
 
 void from_json(yyjson_val* json, ReleaseEntry& e) {
@@ -328,7 +328,38 @@ auto DownloadAndExtract(ProgressBox* pbox, const ReleaseEntry& release) -> Resul
 } // namespace
 
 PackMenu::PackMenu() : MenuBase{"HATS Pack Releases", MenuFlag_None} {
-    fs::FsNativeSd().CreateDirectoryRecursively(CACHE_PATH);
+    fs::FsNativeSd fs;
+    fs.CreateDirectoryRecursively(CACHE_PATH);
+
+    // Ensure staging directory exists for the HATS installer payload
+    auto app = App::GetApp();
+    const fs::FsPath staging_path = app->m_installer_staging_path.Get().c_str();
+    fs.CreateDirectoryRecursively(staging_path);
+
+    // Clean up old HATS pack files to avoid conflicts
+    // Old HATS packs had hats-tools.nro and hats-installer.bin in different locations
+    constexpr const char* OLD_NRO_PATH = "/switch/hats-tools/hats-tools.nro";
+    constexpr const char* OLD_PAYLOAD_PATH = "/bootloader/payloads/hats-installer.bin";
+    constexpr const char* OLD_PAYLOAD_PATH2 = "/bootloader/payloads/HATS Installer.bin";
+
+    // Only delete old NRO if it's not the currently running application
+    if (fs.FileExists(OLD_NRO_PATH)) {
+        const char* exe_path = App::GetExePath().s;
+        if (strcasecmp(exe_path, OLD_NRO_PATH) != 0) {
+            hats_log_write("hats: removing old hats-tools.nro\n");
+            fs.DeleteFile(OLD_NRO_PATH);
+        } else {
+            hats_log_write("hats: skipping deletion of currently running hats-tools.nro\n");
+        }
+    }
+    if (fs.FileExists(OLD_PAYLOAD_PATH)) {
+        hats_log_write("hats: removing old payload at /bootloader/payloads/hats-installer.bin\n");
+        fs.DeleteFile(OLD_PAYLOAD_PATH);
+    }
+    if (fs.FileExists(OLD_PAYLOAD_PATH2)) {
+        hats_log_write("hats: removing old payload at /bootloader/payloads/HATS Installer.bin\n");
+        fs.DeleteFile(OLD_PAYLOAD_PATH2);
+    }
 
     // Check and auto-revert stale swaps on menu creation (cleanup from previous sessions)
     if (utils::isPayloadSwapped()) {

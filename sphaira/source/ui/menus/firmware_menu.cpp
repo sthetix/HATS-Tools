@@ -24,6 +24,8 @@ namespace {
 
 constexpr const char* CACHE_PATH = "/switch/hats-tools/cache/hats";
 constexpr const char* RELEASES_CACHE = "/switch/hats-tools/cache/hats/firmware_releases.json";
+constexpr const char* FUSES_CACHE = "/switch/hats-tools/cache/hats/fuses.json";
+constexpr const char* FUSES_URL = "https://raw.githubusercontent.com/sthetix/FuseNCA/master/fuses.json";
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/firmware.zip";
 constexpr const char* FIRMWARE_DEST = "/firmware";
 
@@ -65,6 +67,23 @@ void from_json(yyjson_val* json, FirmwareEntry& e) {
 void from_json(const fs::FsPath& path, std::vector<FirmwareEntry>& entries) {
     JSON_INIT_VEC_FILE(path, nullptr, nullptr);
     if (yyjson_is_arr(json)) {
+        JSON_ARR_ITR(entries);
+    }
+}
+
+void from_json(yyjson_val* json, FuseEntry& e) {
+    JSON_OBJ_ITR(
+        JSON_SET_STR(version);
+        JSON_SET_UINT(fuses_production);
+    );
+}
+
+void from_json(const fs::FsPath& path, std::vector<FuseEntry>& entries) {
+    JSON_INIT_VEC_FILE(path, nullptr, nullptr);
+    // Get the "data" array from the JSON
+    auto data_val = yyjson_obj_get(json, "data");
+    if (data_val && yyjson_is_arr(data_val)) {
+        json = data_val;
         JSON_ARR_ITR(entries);
     }
 }
@@ -240,10 +259,17 @@ void FirmwareMenu::Draw(NVGcontext* vg, Theme* theme) {
     MenuBase::Draw(vg, theme);
 
     // Draw current firmware info
-    gfx::drawTextArgs(vg, 80.f, GetY() + 10.f, 18.f,
-        NVG_ALIGN_LEFT | NVG_ALIGN_TOP,
-        theme->GetColour(ThemeEntryID_TEXT_INFO),
-        "Current Firmware: %s", m_current_firmware.c_str());
+    if (m_current_fuse_count >= 0) {
+        gfx::drawTextArgs(vg, 80.f, GetY() + 10.f, 18.f,
+            NVG_ALIGN_LEFT | NVG_ALIGN_TOP,
+            theme->GetColour(ThemeEntryID_TEXT_INFO),
+            "Current Firmware: %s | Fuses: %d", m_current_firmware.c_str(), m_current_fuse_count);
+    } else {
+        gfx::drawTextArgs(vg, 80.f, GetY() + 10.f, 18.f,
+            NVG_ALIGN_LEFT | NVG_ALIGN_TOP,
+            theme->GetColour(ThemeEntryID_TEXT_INFO),
+            "Current Firmware: %s", m_current_firmware.c_str());
+    }
 
     if (m_loading) {
         gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f, 24.f,
@@ -307,13 +333,28 @@ void FirmwareMenu::Draw(NVGcontext* vg, Theme* theme) {
             theme->GetColour(name_color),
             "[%s] %s", date.c_str(), display_name.c_str());
 
-        // Size on the right
+        // Fuse count and size on the right
+        float right_x = x + w - text_xoffset;
         if (release.size > 0) {
             float size_mb = release.size / 1024.0f / 1024.0f;
-            gfx::drawTextArgs(vg, x + w - text_xoffset, y + h / 2.f, 16.f,
+            gfx::drawTextArgs(vg, right_x, y + h / 2.f, 16.f,
                 NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
                 theme->GetColour(ThemeEntryID_TEXT_INFO),
                 "%.1f MB", size_mb);
+        }
+
+        // Show fuse count if available, otherwise show ?
+        auto fuse_color = (is_downgrade) ? ThemeEntryID_ERROR : ThemeEntryID_TEXT_INFO;
+        if (release.fuse_count >= 0) {
+            gfx::drawTextArgs(vg, right_x - 100.f, y + h / 2.f, 16.f,
+                NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
+                theme->GetColour(fuse_color),
+                "Fuses: %d", release.fuse_count);
+        } else {
+            gfx::drawTextArgs(vg, right_x - 100.f, y + h / 2.f, 16.f,
+                NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
+                theme->GetColour(ThemeEntryID_TEXT_INFO),
+                "Fuses: ?");
         }
     });
 }
@@ -324,6 +365,8 @@ void FirmwareMenu::OnFocusGained() {
     if (!m_loaded && !m_loading) {
         FetchReleases();
     }
+    // Always try to fetch fuses (non-fatal if fails)
+    FetchFuses();
 }
 
 void FirmwareMenu::SetIndex(s64 index) {
@@ -363,6 +406,11 @@ void FirmwareMenu::FetchReleases() {
 
             from_json(result.path, m_releases);
 
+            // Populate fuse counts for releases (if fuse data is already loaded)
+            for (auto& release : m_releases) {
+                release.fuse_count = GetFuseCount(release.tag_name);
+            }
+
             if (m_releases.empty()) {
                 m_error_message = "No releases found.";
             } else {
@@ -373,6 +421,59 @@ void FirmwareMenu::FetchReleases() {
             return true;
         }}
     );
+}
+
+void FirmwareMenu::FetchFuses() {
+    // Check if already loaded
+    if (m_fuses_loaded) {
+        return;
+    }
+
+    curl::Api().ToFileAsync(
+        curl::Url{FUSES_URL},
+        curl::Path{FUSES_CACHE},
+        curl::Flags{curl::Flag_Cache},
+        curl::StopToken{this->GetToken()},
+        curl::OnComplete{[this](auto& result) {
+            if (!result.success) {
+                log_write("firmware: failed to fetch fuses.json\n");
+                // Non-fatal, continue without fuse data
+                return false;
+            }
+
+            std::vector<FuseEntry> fuse_entries;
+            from_json(result.path, fuse_entries);
+
+            // Build the fuse map
+            m_fuse_map.clear();
+            for (const auto& entry : fuse_entries) {
+                m_fuse_map[entry.version] = static_cast<int>(entry.fuses_production);
+            }
+
+            m_fuses_loaded = true;
+            log_write("firmware: loaded %zu fuse entries\n", m_fuse_map.size());
+
+            // Get current firmware's fuse count
+            m_current_fuse_count = GetFuseCount(m_current_firmware);
+            log_write("firmware: current firmware %s has %d fuses\n",
+                      m_current_firmware.c_str(), m_current_fuse_count);
+
+            // Update releases with fuse counts
+            for (auto& release : m_releases) {
+                release.fuse_count = GetFuseCount(release.tag_name);
+            }
+
+            return true;
+        }}
+    );
+}
+
+int FirmwareMenu::GetFuseCount(const std::string& version) {
+    auto it = m_fuse_map.find(version);
+    if (it != m_fuse_map.end()) {
+        return it->second;
+    }
+    return -1; // Unknown
 }
 
 void FirmwareMenu::DownloadFirmware() {
@@ -429,6 +530,15 @@ void FirmwareMenu::UpdateSubheading() {
 }
 
 bool FirmwareMenu::IsDowngrade(const std::string& target_version) {
+    // Use fuse-based comparison if available
+    if (m_current_fuse_count >= 0) {
+        int target_fuses = GetFuseCount(target_version);
+        if (target_fuses >= 0) {
+            // Downgrade if target requires fewer fuses than current
+            return target_fuses < m_current_fuse_count;
+        }
+    }
+    // Fallback to version comparison if fuse data not available
     return isVersionLower(target_version, m_current_firmware);
 }
 

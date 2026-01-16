@@ -212,62 +212,9 @@ static int file_exists(const char *path) {
     return (f_stat(path, &fno) == FR_OK);
 }
 
-// Backup original hekate_ipl.ini and create temporary one for HATS autoboot
-static void setup_hekate_ini_backup(void) {
-    FIL fp_src;
-    FIL fp_bak;
-    FIL fp_ini;
-    UINT bytes_read;
-    UINT bytes_written;
-    u8 *buf;
-
-    // 1. Backup original hekate_ipl.ini to .bak
-    if (f_open(&fp_src, HEKATE_INI, FA_READ) == FR_OK) {
-        u32 file_size = f_size(&fp_src);
-        buf = (u8 *)malloc(file_size);
-        if (buf) {
-            if (f_read(&fp_src, buf, file_size, &bytes_read) == FR_OK && bytes_read == file_size) {
-                f_close(&fp_src);
-                if (f_open(&fp_bak, HEKATE_INI_BAK, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
-                    f_write(&fp_bak, buf, file_size, &bytes_written);
-                    f_close(&fp_bak);
-                }
-                free(buf);
-            } else {
-                f_close(&fp_src);
-                free(buf);
-                buf = NULL;
-            }
-        } else {
-            f_close(&fp_src);
-        }
-    } else {
-        buf = NULL;
-    }
-
-    // 2. Create new temporary hekate_ipl.ini with HATS autoboot config
-    const char *temp_ini =
-        "[config]\n"
-        "autoboot=1\n"
-        "autoboot_list=0\n"
-        "bootwait=0\n"
-        "verification=1\n"
-        "backlight=100\n"
-        "autohosoff=2\n"
-        "autonogc=1\n"
-        "updater2p=1\n"
-        "\n"
-        "[HATS Installer]\n"
-        "payload=/bootloader/payloads/hats-installer.bin\n";
-
-    if (f_open(&fp_ini, HEKATE_INI, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
-        u32 len = strlen(temp_ini);
-        f_write(&fp_ini, temp_ini, len, &bytes_written);
-        f_close(&fp_ini);
-    }
-}
-
-// Restore hekate_ipl.ini from backup (called after installation)
+// Restore hekate_ipl.ini from backup (called after installation or on error)
+// Note: The backup and modification of hekate_ipl.ini is now handled by the NRO
+// when the user clicks "Launch". The payload only needs to restore it.
 static bool restore_hekate_ini(void) {
     FIL fp_bak;
     FIL fp_dst;
@@ -303,13 +250,20 @@ static bool restore_hekate_ini(void) {
     bool success = false;
     if (f_open(&fp_dst, HEKATE_INI, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
         if (f_write(&fp_dst, buf, bak_size, &bytes_written) == FR_OK && bytes_written == bak_size) {
+            // Sync to disk before closing!
+            f_sync(&fp_dst);
             success = true;
         }
         f_close(&fp_dst);
     }
 
     free(buf);
-    f_unlink(HEKATE_INI_BAK);
+
+    // Delete the backup file after successful restore
+    if (success) {
+        f_unlink(HEKATE_INI_BAK);
+    }
+
     return success;
 }
 
@@ -682,8 +636,8 @@ void ipl_main(void) {
         power_set_state(POWER_OFF_REBOOT);
     }
 
-    // Backup original hekate_ipl.ini and create temporary config for HATS
-    setup_hekate_ini_backup();
+    // Note: hekate_ipl.ini backup/modify is now handled by the NRO when user clicks "Launch"
+    // The payload only needs to restore it after installation completes
 
     // Logging disabled
     // log_init(LOG_PATH);
@@ -712,10 +666,15 @@ void ipl_main(void) {
     if (!file_exists(STAGING_PATH)) {
         set_color(COLOR_RED);
         gfx_printf("No staging directory found!\n");
-        gfx_printf("%s\n\n", STAGING_PATH);
+        gfx_printf("Run HATS Tools first.\n\n");
         set_color(COLOR_WHITE);
-        // log_write("ERROR: Staging directory not found: %s\n", STAGING_PATH);
-        // log_close();
+
+        // Restore hekate_ipl.ini since installation won't proceed
+        if (restore_hekate_ini()) {
+            set_color(COLOR_GREEN);
+            gfx_printf("[OK] hekate_ipl.ini restored\n");
+            set_color(COLOR_WHITE);
+        }
 
         // Launch payload if available
         if (file_exists(PAYLOAD_PATH)) {
@@ -724,9 +683,10 @@ void ipl_main(void) {
             launch_payload(PAYLOAD_PATH);
         }
 
-        gfx_printf("Rebooting in 3 seconds...\n");
-        msleep(3000);
-        power_set_state(POWER_OFF_REBOOT);
+        // Halt instead of rebooting to avoid loop
+        gfx_printf("\nHalting. Press POWER to exit.\n");
+        while (1)
+            bpmp_halt();
     }
 
     // Show ready message

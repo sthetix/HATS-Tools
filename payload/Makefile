@@ -82,7 +82,7 @@ $(BUILDDIR)/$(TARGET)/%.o: $(BDKDIR)/%.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 release: $(OUTPUTDIR)/$(TARGET).bin
-	@mkdir -p release/bootloader/payloads
-	@cp $(OUTPUTDIR)/$(TARGET).bin release/bootloader/payloads/hats-installer.bin
-	@cd release && zip -r ../$(TARGET)-$(VERSION).zip bootloader
+	@mkdir -p release/switch/hats-tools
+	@cp $(OUTPUTDIR)/$(TARGET).bin release/switch/hats-tools/hats-installer.bin
+	@cd release && zip -r ../$(TARGET)-$(VERSION).zip switch
 	@echo "Release package created: $(TARGET)-$(VERSION).zip"

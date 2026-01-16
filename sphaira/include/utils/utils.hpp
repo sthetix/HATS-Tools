@@ -30,7 +30,7 @@ std::string formatSizeStorage(u64 size);
 std::string formatSizeNetwork(u64 size);
 
 // Set hekate_ipl.ini to auto-boot HATS installer payload
-// Backs up original ini and modifies config to autoboot the payload
+// Backs up original ini and copies pre-made modded ini to autoboot the payload
 // Returns true on success, false on failure
 bool setHekateAutobootPayload(const char* payload_path);
 
