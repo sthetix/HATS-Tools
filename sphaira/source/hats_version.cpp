@@ -45,12 +45,40 @@ std::string getHatsVersion() {
         }
 
         const char* name = d->d_name;
-        size_t len = std::strlen(name);
 
-        // Check if filename starts with "HATS-" and ends with ".txt"
+        // Check for fixed filename HATS_VERSION.txt
+        if (std::strcmp(name, "HATS_VERSION.txt") == 0) {
+            // Read the version from the file
+            std::string path = "/" + std::string(name);
+            FILE* f = fopen(path.c_str(), "r");
+            if (f) {
+                char line[256];
+                // Read first line that contains version info
+                // Format: "Generated on: ..." or look for content in the file
+                while (fgets(line, sizeof(line), f)) {
+                    // Look for content hash line which contains the actual version
+                    if (std::strstr(line, "Content Hash:")) {
+                        // Extract the hash value
+                        char* hash = std::strchr(line, ':');
+                        if (hash && hash[1]) {
+                            hash += 2; // Skip ": "
+                            char* end = std::strchr(hash, ' ');
+                            if (end) *end = '\0';
+                            hatsVersion = std::string(hash);
+                            break;
+                        }
+                    }
+                }
+                fclose(f);
+                if (hatsVersion != "Not Found") break;
+            }
+        }
+
+        // Legacy support: check for old HATS-*.txt format
+        size_t len = std::strlen(name);
         if (len > 9 && std::strncmp(name, "HATS-", 5) == 0 &&
-            std::strcmp(name + len - 4, ".txt") == 0) {
-            // Extract version without .txt extension
+            std::strcmp(name + len - 4, ".txt") == 0 &&
+            hatsVersion == "Not Found") {
             hatsVersion = std::string(name, len - 4);
             break;
         }

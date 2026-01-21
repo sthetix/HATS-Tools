@@ -32,7 +32,7 @@
 #include "fs.h"
 
 // Configuration
-#define STAGING_PATH      "sd:/hats-staging"
+#define STAGING_PATH      "sd:/config/hats-tools/hats-staging"
 #define PAYLOAD_PATH      "sd:/payload.bin"
 #define HEKATE_INI_BAK   "sd:/bootloader/hekate_ipl.ini.bak"
 #define HEKATE_INI       "sd:/bootloader/hekate_ipl.ini"
@@ -337,14 +337,14 @@ cleanup:
     }
 }
 
-// Find and delete HATS-*.txt version file in root
+// Find and delete HATS version file(s) in root
 static void delete_hats_txt(void) {
     DIR dir;
     FILINFO fno;
     int res;
     int found = 0;
 
-    // log_write("\n--- Deleting HATS-*.txt ---\n");
+    // log_write("\n--- Deleting HATS version files ---\n");
 
     res = f_opendir(&dir, "sd:/");
     if (res != FR_OK) {
@@ -359,8 +359,24 @@ static void delete_hats_txt(void) {
         // Skip directories
         if (fno.fattrib & AM_DIR) continue;
 
-        // Check if filename starts with "HATS-" and ends with ".txt"
-        if (strncmp(fno.fname, "HATS-", 5) == 0) {
+        // Check for new fixed filename or legacy HATS-*.txt format
+        if (strcmp(fno.fname, "HATS_VERSION.txt") == 0) {
+            // Delete the new fixed filename
+            char path[64];
+            s_printf(path, "sd:/%s", fno.fname);
+            res = f_unlink(path);
+            if (res == FR_OK) {
+                set_color(COLOR_GREEN);
+                gfx_printf("  Deleted: %s\n", fno.fname);
+                found++;
+            } else {
+                set_color(COLOR_RED);
+                gfx_printf("  Failed: %s\n", fno.fname);
+                total_errors++;
+            }
+            set_color(COLOR_WHITE);
+        } else if (strncmp(fno.fname, "HATS-", 5) == 0) {
+            // Legacy support: delete old HATS-*.txt format
             size_t len = strlen(fno.fname);
             if (len > 4 && strcmp(fno.fname + len - 4, ".txt") == 0) {
                 char path[64];
@@ -369,7 +385,7 @@ static void delete_hats_txt(void) {
                 res = f_unlink(path);
                 if (res == FR_OK) {
                     set_color(COLOR_GREEN);
-                    gfx_printf("  Deleted: %s\n", fno.fname);
+                    gfx_printf("  Deleted (legacy): %s\n", fno.fname);
                     // log_write("  Deleted OK\n");
                     found++;
                 } else {
@@ -387,9 +403,9 @@ static void delete_hats_txt(void) {
 
     if (found == 0) {
         set_color(COLOR_ORANGE);
-        gfx_printf("  No HATS-*.txt found\n");
+        gfx_printf("  No HATS version files found\n");
         set_color(COLOR_WHITE);
-        // log_write("No HATS-*.txt found\n");
+        // log_write("No HATS version files found\n");
     }
 }
 
