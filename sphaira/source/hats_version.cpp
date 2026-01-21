@@ -48,7 +48,7 @@ std::string getHatsVersion() {
 
         // Check for fixed filename HATS_VERSION.txt
         if (std::strcmp(name, "HATS_VERSION.txt") == 0) {
-            // Read the version from the file (first line is the version string)
+            // Read the version from the file (first line is "# HATS-YYYY-MM-DD-hash")
             std::string path = "/" + std::string(name);
             FILE* f = fopen(path.c_str(), "r");
             if (f) {
@@ -59,7 +59,12 @@ std::string getHatsVersion() {
                     if (len > 0 && line[len - 1] == '\n') {
                         line[len - 1] = '\0';
                     }
-                    hatsVersion = std::string(line);
+                    // Skip leading "# " if present
+                    const char* start = line;
+                    if (std::strncmp(line, "# ", 2) == 0) {
+                        start = line + 2;
+                    }
+                    hatsVersion = std::string(start);
                 }
                 fclose(f);
                 break;
