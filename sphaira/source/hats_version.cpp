@@ -48,29 +48,21 @@ std::string getHatsVersion() {
 
         // Check for fixed filename HATS_VERSION.txt
         if (std::strcmp(name, "HATS_VERSION.txt") == 0) {
-            // Read the version from the file
+            // Read the version from the file (first line is the version string)
             std::string path = "/" + std::string(name);
             FILE* f = fopen(path.c_str(), "r");
             if (f) {
-                char line[256];
-                // Read first line that contains version info
-                // Format: "Generated on: ..." or look for content in the file
-                while (fgets(line, sizeof(line), f)) {
-                    // Look for content hash line which contains the actual version
-                    if (std::strstr(line, "Content Hash:")) {
-                        // Extract the hash value
-                        char* hash = std::strchr(line, ':');
-                        if (hash && hash[1]) {
-                            hash += 2; // Skip ": "
-                            char* end = std::strchr(hash, ' ');
-                            if (end) *end = '\0';
-                            hatsVersion = std::string(hash);
-                            break;
-                        }
+                char line[64];
+                if (fgets(line, sizeof(line), f)) {
+                    // Remove trailing newline
+                    size_t len = std::strlen(line);
+                    if (len > 0 && line[len - 1] == '\n') {
+                        line[len - 1] = '\0';
                     }
+                    hatsVersion = std::string(line);
                 }
                 fclose(f);
-                if (hatsVersion != "Not Found") break;
+                break;
             }
         }
 
