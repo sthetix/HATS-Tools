@@ -501,37 +501,26 @@ auto ParseNxDbCheats(const std::string& json_str, const std::string& target_buil
         return cheats;
     }
 
-    // Look for the target build ID in the JSON
+    // Look for the target build ID in the JSON - MUST match exactly
     yyjson_val* build_id_val = yyjson_obj_get(root, target_build_id.c_str());
 
-    // If not found, try to find any build ID (for fallback)
+    // If not found, return empty cheats - NO fallback
     if (!build_id_val || !yyjson_is_obj(build_id_val)) {
-        log_write("[Cheats] Build ID %s not found in nx-cheats-db, checking available keys\n", target_build_id.c_str());
+        log_write("[Cheats] Build ID %s not found in nx-cheats-db\n", target_build_id.c_str());
+        log_write("[Cheats] Available build IDs in this file:\n");
 
         // List available build IDs for debugging
         yyjson_val* key;
         yyjson_obj_iter iter;
         yyjson_obj_iter_init(root, &iter);
-        std::string first_build_id;
         while ((key = yyjson_obj_iter_next(&iter))) {
             const char* key_str = yyjson_get_str(key);
             if (key_str && std::string(key_str) != "attribution") {
-                if (first_build_id.empty()) {
-                    first_build_id = key_str;
-                }
-                log_write("[Cheats] Available Build ID: %s\n", key_str);
+                log_write("[Cheats]   - %s\n", key_str);
             }
         }
 
-        // Fall back to first available build ID if target not found
-        if (!first_build_id.empty()) {
-            log_write("[Cheats] Using fallback Build ID: %s\n", first_build_id.c_str());
-            build_id_val = yyjson_obj_get(root, first_build_id.c_str());
-        }
-    }
-
-    if (!build_id_val || !yyjson_is_obj(build_id_val)) {
-        log_write("[Cheats] No valid cheat data found in nx-cheats-db JSON\n");
+        log_write("[Cheats] No cheats will be shown - Build ID must match exactly\n");
         return cheats;
     }
 
@@ -2663,7 +2652,6 @@ CheatDownloadMenu::CheatDownloadMenu(CheatSource source, const GameCheatInfo& ga
         this->SetActions(
             std::make_pair(Button::A, Action{"Toggle"_i18n, [this](){
                 if (!m_cheats.empty() && !m_loading) {
-                    // Toggle cheat selection
                     if (m_index < (s64)m_cheats.size()) {
                         m_cheats[m_index].selected = !m_cheats[m_index].selected;
                     }
@@ -3058,10 +3046,9 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
         curl::Header{},
         curl::StopToken{this->GetToken()},
         curl::OnComplete{[this](auto& result) {
-            m_loading = false;
-            m_loaded = true;
-
             if (!result.success) {
+                m_loading = false;
+                m_loaded = true;
                 m_error_message = "Failed to fetch versions.json from nx-cheats-db.\nCheck your internet connection.";
                 log_write("[Cheats] Failed to fetch versions.json, HTTP code: %ld\n", result.code);
                 return true;
@@ -3073,6 +3060,8 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
             // Parse versions.json to find build ID for this title
             yyjson_doc* doc = yyjson_read(content.data(), content.size(), 0);
             if (!doc) {
+                m_loading = false;
+                m_loaded = true;
                 m_error_message = "Failed to parse versions.json";
                 log_write("[Cheats] Failed to parse versions.json\n");
                 return true;
@@ -3082,6 +3071,8 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
 
             yyjson_val* root = yyjson_doc_get_root(doc);
             if (!yyjson_is_obj(root)) {
+                m_loading = false;
+                m_loaded = true;
                 m_error_message = "Invalid versions.json format";
                 log_write("[Cheats] Invalid versions.json format\n");
                 return true;
@@ -3093,34 +3084,51 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
 
             yyjson_val* title_obj = yyjson_obj_get(root, title_id_key);
             if (!title_obj || !yyjson_is_obj(title_obj)) {
+                m_loading = false;
+                m_loaded = true;
                 m_error_message = "Title not found in nx-cheats-db.\nTitle ID: " + std::string(title_id_key);
                 log_write("[Cheats] Title %s not found in versions.json\n", title_id_key);
                 return true;
             }
 
-            // Get latest version's build ID
+            // First, try to find the user's specific version (m_game.version)
             std::string build_id;
-            yyjson_val* latest_val = yyjson_obj_get(title_obj, "latest");
-            if (latest_val && yyjson_is_uint(latest_val)) {
-                u32 latest = yyjson_get_uint(latest_val);
-                std::string version_key = std::to_string(latest);
-                yyjson_val* build_id_val = yyjson_obj_get(title_obj, version_key.c_str());
-                if (build_id_val && yyjson_is_str(build_id_val)) {
-                    build_id = yyjson_get_str(build_id_val);
+            std::string version_key = std::to_string(m_game.version);
+            log_write("[Cheats] Looking for version %s in versions.json\n", version_key.c_str());
+
+            yyjson_val* build_id_val = yyjson_obj_get(title_obj, version_key.c_str());
+            if (build_id_val && yyjson_is_str(build_id_val)) {
+                build_id = yyjson_get_str(build_id_val);
+                log_write("[Cheats] Found Build ID for version %s: %s\n", version_key.c_str(), build_id.c_str());
+            }
+
+            // If user's version not found, try latest version
+            if (build_id.empty()) {
+                yyjson_val* latest_val = yyjson_obj_get(title_obj, "latest");
+                if (latest_val && yyjson_is_uint(latest_val)) {
+                    u32 latest = yyjson_get_uint(latest_val);
+                    std::string latest_key = std::to_string(latest);
+                    yyjson_val* latest_bid_val = yyjson_obj_get(title_obj, latest_key.c_str());
+                    if (latest_bid_val && yyjson_is_str(latest_bid_val)) {
+                        build_id = yyjson_get_str(latest_bid_val);
+                        log_write("[Cheats] Using latest version %s, Build ID: %s\n", latest_key.c_str(), build_id.c_str());
+                    }
                 }
             }
 
             // Fall back to version 0
             if (build_id.empty()) {
-                yyjson_val* build_id_val = yyjson_obj_get(title_obj, "0");
-                if (build_id_val && yyjson_is_str(build_id_val)) {
-                    build_id = yyjson_get_str(build_id_val);
+                yyjson_val* v0_bid_val = yyjson_obj_get(title_obj, "0");
+                if (v0_bid_val && yyjson_is_str(v0_bid_val)) {
+                    build_id = yyjson_get_str(v0_bid_val);
+                    log_write("[Cheats] Using version 0, Build ID: %s\n", build_id.c_str());
                 }
             }
 
             if (build_id.empty()) {
-                m_error_message = "No Build ID found for this title";
-                log_write("[Cheats] No Build ID found for title %s\n", title_id_key);
+                // Version not in database - don't guess, show "not found" message
+                log_write("[Cheats] No Build ID found in versions.json for version %s\n", version_key.c_str());
+                FetchCheatsFileAndExtractBuildIds();
                 return true;
             }
 
@@ -3132,6 +3140,22 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
             return true;
         }}
     );
+}
+
+// Version not in database - don't guess, just report not found
+void CheatDownloadMenu::FetchCheatsFileAndExtractBuildIds() {
+    m_loading = false;
+    m_loaded = true;
+
+    // Version not in versions.json - don't show cheats for wrong version
+    log_write("[Cheats] Your game version v%u is not in versions.json\n", m_game.version);
+    log_write("[Cheats] Not showing GitHub cheats - they wouldn't work for your version\n");
+
+    m_error_message = "Cheats not found on GitHub for your game version.\n\n"
+                      "Your version: v" + std::to_string(m_game.version) + "\n"
+                      "Please try CheatSlips or launch the game first\nto auto-detect your version.";
+    App::Notify("Cheats not found on GitHub");
+    SetPop();
 }
 
 // Fetch cheat JSON file from GitHub
@@ -3176,9 +3200,13 @@ void CheatDownloadMenu::FetchNxDbCheatsFromGithub(const std::string& build_id) {
             m_cheats = ParseNxDbCheats(content, build_id);
 
             if (m_cheats.empty()) {
-                m_error_message = "No cheats found for this title.\nBuild ID: " + build_id;
-                log_write("[Cheats] No cheats found for title with Build ID: %s\n", build_id.c_str());
-                App::Notify("No cheats found for this Build ID");
+                // Build ID not found in cheats file - don't try alternatives
+                // Showing cheats for a different Build ID would be misleading
+                log_write("[Cheats] Build ID %s not found in cheats file\n", build_id.c_str());
+
+                m_error_message = "No cheats found for your game version on GitHub.\n\n"
+                                  "Please try CheatSlips or launch the game first\nto detect the correct version.";
+                App::Notify("No cheats found for this version");
                 SetPop();
             } else {
                 m_index = 0; // Set to first item when cheats are found

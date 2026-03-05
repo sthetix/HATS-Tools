@@ -198,6 +198,7 @@ private:
     void OnSelect();
     void FetchCheats();
     void FetchCheatsFromNxDb();
+    void FetchCheatsFileAndExtractBuildIds();  // Version not in db, show not found
     void FetchNxDbCheatsFromGithub(const std::string& build_id);
     void CacheNxDbCheatFile(const std::string& content);
     void FetchCheatsFromApi(const std::string& build_id);
