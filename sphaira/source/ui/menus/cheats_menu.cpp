@@ -55,11 +55,20 @@ constexpr const char* AIO_TOKEN_PATH = "/config/aio-switch-updater/token.json";
 constexpr s32 ENTRY_CHUNK_COUNT = 1000;
 
 // DmntCheatProcessMetadata structure for getting build ID from dmnt:cht
+// Must match Atmosphere's actual IPC response layout exactly
+struct DmntMemoryRegionExtents {
+    u64 base;
+    u64 size;
+};
+
 struct DmntCheatProcessMetadata {
-    u64 process_id;
-    u64 title_id;
-    u8 main_nso_build_id[0x20];
-    u8 padding[0xB0];
+    u64 process_id;                              // offset 0x00
+    u64 title_id;                                // offset 0x08
+    DmntMemoryRegionExtents main_nso_extents;    // offset 0x10
+    DmntMemoryRegionExtents heap_extents;        // offset 0x20
+    DmntMemoryRegionExtents alias_extents;       // offset 0x30
+    DmntMemoryRegionExtents address_space_extents; // offset 0x40
+    u8 main_nso_build_id[0x20];                 // offset 0x50
 };
 
 // Format title ID as 16-character hex string (lowercase for atmosphere paths)
@@ -132,6 +141,63 @@ auto GetBuildIdFromDmnt(u64 title_id) -> std::string {
     std::string build_id = BytesToHex(metadata.main_nso_build_id, 8);
     log_write("[Cheats] Got Build ID from dmnt:cht: %s\n", build_id.c_str());
 
+    return build_id;
+}
+
+// Get Build ID directly from installed game's main NSO via fsp-ldr
+// Works in both applet and non-applet mode under Atmosphere (ams.mitm lifts the firmware restriction)
+// Mounts the ExeFS of the installed title and reads the build ID from the NSO header at offset 0x40
+auto GetBuildIdFromNso(u64 title_id) -> std::string {
+    // Get storage ID from content meta
+    NcmStorageId storage_id = NcmStorageId_Any;
+    s32 count = 0;
+    if (R_SUCCEEDED(nsCountApplicationContentMeta(title_id, &count)) && count > 0) {
+        std::vector<NsApplicationContentMetaStatus> statuses(count);
+        s32 out = 0;
+        if (R_SUCCEEDED(nsListApplicationContentMetaStatus(title_id, 0, statuses.data(), statuses.size(), &out)) && out > 0) {
+            storage_id = static_cast<NcmStorageId>(statuses[0].storageID);
+            log_write("[Cheats] GetBuildIdFromNso: title storage_id=%d\n", (int)storage_id);
+        }
+    }
+
+    // Initialize fsp-ldr service
+    Result rc = fsldrInitialize();
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromNso: fsldrInitialize failed: %x\n", rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(fsldrExit());
+
+    // Mount the ExeFS for this title
+    FsCodeInfo code_info{};
+    FsFileSystem fs{};
+    rc = fsldrOpenCodeFileSystem(&code_info, title_id, storage_id, "", FsContentAttributes_None, &fs);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromNso: fsldrOpenCodeFileSystem failed: %x\n", rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(fsFsClose(&fs));
+
+    // Open the main NSO file
+    FsFile file{};
+    rc = fsFsOpenFile(&fs, "/main", FsOpenMode_Read, &file);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromNso: failed to open /main: %x\n", rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(fsFileClose(&file));
+
+    // Read 8 bytes at offset 0x40 (NSO build ID)
+    u8 build_id_bytes[8]{};
+    u64 bytes_read = 0;
+    rc = fsFileRead(&file, 0x40, build_id_bytes, sizeof(build_id_bytes), FsReadOption_None, &bytes_read);
+    if (R_FAILED(rc) || bytes_read != sizeof(build_id_bytes)) {
+        log_write("[Cheats] GetBuildIdFromNso: failed to read build ID: %x\n", rc);
+        return "";
+    }
+
+    const auto build_id = BytesToHex(build_id_bytes, sizeof(build_id_bytes));
+    log_write("[Cheats] GetBuildIdFromNso: build ID = %s\n", build_id.c_str());
     return build_id;
 }
 
@@ -3020,20 +3086,28 @@ void CheatDownloadMenu::FetchCheats() {
 void CheatDownloadMenu::FetchCheatsFromNxDb() {
     log_write("[Cheats] Fetching cheats from nx-cheats-db (GitHub)\n");
 
-    // First try dmnt:cht service (fast, requires game to be running)
+    // 1st: dmnt:cht — requires game suspended in background (applet mode)
     std::string build_id = GetBuildIdFromDmnt(m_game.title_id);
 
     if (!build_id.empty()) {
-        // Successfully got Build ID from running game
         m_game.build_id = build_id;
         log_write("[Cheats] Got Build ID from dmnt:cht: %s\n", build_id.c_str());
-        // Fetch cheats directly
         FetchNxDbCheatsFromGithub(build_id);
         return;
     }
 
-    // Need to get build ID from versions.json on GitHub
-    log_write("[Cheats] dmnt:cht not available, fetching versions.json from GitHub\n");
+    // 2nd: fsp-ldr — reads directly from installed NSO (non-applet/application mode only)
+    build_id = GetBuildIdFromNso(m_game.title_id);
+
+    if (!build_id.empty()) {
+        m_game.build_id = build_id;
+        log_write("[Cheats] Got Build ID from NSO: %s\n", build_id.c_str());
+        FetchNxDbCheatsFromGithub(build_id);
+        return;
+    }
+
+    // 3rd: versions.json lookup (fallback, may be incomplete)
+    log_write("[Cheats] dmnt:cht and NSO both failed, fetching versions.json from GitHub\n");
 
     const auto title_id_str = FormatTitleId(m_game.title_id);
     const auto versions_url = std::string(NX_DB_VERSIONS_URL);
@@ -3142,20 +3216,111 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
     );
 }
 
-// Version not in database - don't guess, just report not found
+// Version not in nx-cheats-db versions.json — fall back to HamletDuFromage per-title versions file
 void CheatDownloadMenu::FetchCheatsFileAndExtractBuildIds() {
-    m_loading = false;
-    m_loaded = true;
+    const auto title_id_str = FormatTitleId(m_game.title_id);
+    const auto versions_url = std::string(VERSIONS_DB_URL) + "/" + title_id_str + ".json";
 
-    // Version not in versions.json - don't show cheats for wrong version
-    log_write("[Cheats] Your game version v%u is not in versions.json\n", m_game.version);
-    log_write("[Cheats] Not showing GitHub cheats - they wouldn't work for your version\n");
+    log_write("[Cheats] Version %u not in nx-cheats-db, trying HamletDuFromage: %s\n",
+              m_game.version, versions_url.c_str());
 
-    m_error_message = "Cheats not found on GitHub for your game version.\n\n"
-                      "Your version: v" + std::to_string(m_game.version) + "\n"
-                      "Please try CheatSlips or launch the game first\nto auto-detect your version.";
-    App::Notify("Cheats not found on GitHub");
-    SetPop();
+    curl::Api().ToMemoryAsync(
+        curl::Url{versions_url},
+        curl::Header{},
+        curl::StopToken{this->GetToken()},
+        curl::OnComplete{[this](auto& result) {
+            if (!result.success || result.code == 404) {
+                m_loading = false;
+                m_loaded = true;
+                m_error_message = "No cheats found for this game version.\n\n"
+                                  "Version: v" + std::to_string(m_game.version) + "\n"
+                                  "This title may not be in any cheat database.\n"
+                                  "Try CheatSlips instead.";
+                log_write("[Cheats] HamletDuFromage versions not found, HTTP code: %ld\n", result.code);
+                App::Notify("No cheats found for this version");
+                SetPop();
+                return true;
+            }
+
+            std::string content(result.data.begin(), result.data.end());
+
+            yyjson_doc* doc = yyjson_read(content.data(), content.size(), 0);
+            if (!doc) {
+                m_loading = false;
+                m_loaded = true;
+                m_error_message = "Failed to parse version database.";
+                log_write("[Cheats] Failed to parse HamletDuFromage versions JSON\n");
+                SetPop();
+                return true;
+            }
+
+            ON_SCOPE_EXIT(yyjson_doc_free(doc));
+
+            yyjson_val* root = yyjson_doc_get_root(doc);
+            if (!yyjson_is_obj(root)) {
+                m_loading = false;
+                m_loaded = true;
+                m_error_message = "Invalid version database format.";
+                SetPop();
+                return true;
+            }
+
+            std::string build_id;
+
+            // Try exact version match first
+            const std::string version_key = std::to_string(m_game.version);
+            yyjson_val* bid_val = yyjson_obj_get(root, version_key.c_str());
+            if (bid_val && yyjson_is_str(bid_val)) {
+                build_id = yyjson_get_str(bid_val);
+                log_write("[Cheats] HamletDuFromage: found Build ID for version %u: %s\n",
+                          m_game.version, build_id.c_str());
+            }
+
+            // Fall back to latest version if exact match not found
+            if (build_id.empty()) {
+                log_write("[Cheats] HamletDuFromage: version %u not found, using latest\n", m_game.version);
+                u32 latest_version = 0;
+                yyjson_val* key;
+                yyjson_obj_iter iter;
+                yyjson_obj_iter_init(root, &iter);
+                while ((key = yyjson_obj_iter_next(&iter))) {
+                    const char* ver_str = yyjson_get_str(key);
+                    yyjson_val* v_bid = yyjson_obj_iter_get_val(key);
+                    if (!ver_str || !yyjson_is_str(v_bid)) continue;
+                    bool is_numeric = true;
+                    for (const char* p = ver_str; *p; p++) {
+                        if (*p < '0' || *p > '9') { is_numeric = false; break; }
+                    }
+                    if (is_numeric) {
+                        u32 ver = std::stoul(ver_str);
+                        if (ver > latest_version) {
+                            latest_version = ver;
+                            build_id = yyjson_get_str(v_bid);
+                        }
+                    }
+                }
+                if (!build_id.empty()) {
+                    log_write("[Cheats] HamletDuFromage: using latest version %u, Build ID: %s\n",
+                              latest_version, build_id.c_str());
+                }
+            }
+
+            if (build_id.empty()) {
+                m_loading = false;
+                m_loaded = true;
+                m_error_message = "No Build ID found for version v" + std::to_string(m_game.version) + ".\n"
+                                  "Try CheatSlips instead.";
+                log_write("[Cheats] HamletDuFromage: no Build ID found\n");
+                App::Notify("No Build ID found for this version");
+                SetPop();
+                return true;
+            }
+
+            m_game.build_id = build_id;
+            FetchNxDbCheatsFromGithub(build_id);
+            return true;
+        }}
+    );
 }
 
 // Fetch cheat JSON file from GitHub

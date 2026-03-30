@@ -64,7 +64,7 @@ constexpr std::string_view READONLY_FILES[]{
     "/hbmenu.nro", // breaks hbl
     "/payload.bin", // some modchips need this
 
-    "/hats-staging", // HATS staging folder for installer
+    "/config/hats-tools/hats-staging", // HATS staging folder for installer
 
     "/boot.dat", // sxos
     "/license.dat", // sxos

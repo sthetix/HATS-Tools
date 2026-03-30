@@ -310,7 +310,7 @@ public:
 
     // Installer options (HATS installer payload)
     option::OptionString m_installer_payload{"installer", "payload", "/switch/hats-tools/hats-installer.bin"};
-    option::OptionString m_installer_staging_path{"installer", "staging_path", "/hats-staging"};
+    option::OptionString m_installer_staging_path{"installer", "staging_path", "/config/hats-tools/hats-staging"};
     option::OptionString m_installer_install_mode{"installer", "install_mode", "overwrite"}; // overwrite, replace_ams, replace_ams_bl, clean
 
     // Firmware options.

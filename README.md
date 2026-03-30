@@ -55,7 +55,7 @@ pack_url=https://api.github.com/repos/sthetix/HATS/releases
 payload=/switch/hats-tools/hats-installer.bin
 
 # Staging path for HATS extraction
-staging_path=/hats-staging
+staging_path=/config/hats-tools/hats-staging
 
 # Installation mode (options: overwrite, replace_ams, replace_ams_bl, clean)
 # overwrite - Only overwrite files, no deletion (safest, preserves cheats/mods)
