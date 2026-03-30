@@ -1,0 +1,112 @@
+name: Post Release to X
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to post about'
+        required: true
+      release_title:
+        description: 'Release title'
+        required: true
+      release_notes:
+        description: 'Release notes'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  post-to-x:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to X
+        run: |
+          REPO="${{ github.repository }}"
+          TITLE="${{ inputs.release_title || github.event.release.name }}"
+          NOTES="${{ inputs.release_notes || github.event.release.body }}"
+          TAG="${{ inputs.release_tag || github.event.release.tag_name }}"
+          URL="https://github.com/$REPO/releases/tag/$TAG"
+
+          echo "Posting to X.com..."
+
+          pip install requests-oauthlib
+
+          python3 << 'EOF'
+          import os
+          import re
+          from requests_oauthlib import OAuth1Session
+
+          notes = os.environ['NOTES']
+          title = os.environ['TITLE']
+          url = os.environ['URL']
+
+          def extract_sections(notes):
+              """Extract bullet points from Added/Fixed/Improved/Changes sections."""
+              results = {}
+              for section in ['Added', 'Fixed', 'Improved', 'Changes']:
+                  pattern = rf'###\s+{section}\s*\n((?:[-*]\s+.+\n?)+)'
+                  match = re.search(pattern, notes, re.IGNORECASE)
+                  if match:
+                      items = re.findall(r'[-*]\s+\*\*([^*]+)\*\*', match.group(1))
+                      if not items:
+                          items = re.findall(r'[-*]\s+(.+)', match.group(1))
+                          items = [re.sub(r'\*\*([^*]+)\*\*', r'\1', i).strip() for i in items]
+                      results[section] = items
+              return results
+
+          sections = extract_sections(notes)
+
+          tweet_lines = [f"HATS-Tools {title} released!"]
+
+          highlights = []
+          for section in ['Added', 'Fixed', 'Improved', 'Changes']:
+              for item in sections.get(section, [])[:2]:
+                  short = item.split(' - ')[0].split(':')[0].strip()
+                  short = short[:60]
+                  highlights.append(f"{'[+]' if section == 'Added' else '[fix]' if section == 'Fixed' else '[~]'} {short}")
+              if len(highlights) >= 4:
+                  break
+
+          if highlights:
+              tweet_lines.append("\n".join(highlights[:4]))
+
+          tweet_lines.append(f"Download: {url}")
+
+          tweet_text = "\n\n".join(tweet_lines)
+
+          api_key = os.environ['X_API_KEY']
+          api_secret = os.environ['X_API_KEY_SECRET']
+          access_token = os.environ['X_ACCESS_TOKEN']
+          access_secret = os.environ['X_ACCESS_TOKEN_SECRET']
+
+          oauth = OAuth1Session(
+              client_key=api_key,
+              client_secret=api_secret,
+              resource_owner_key=access_token,
+              resource_owner_secret=access_secret
+          )
+
+          response = oauth.post(
+              "https://api.twitter.com/2/tweets",
+              json={"text": tweet_text}
+          )
+
+          if response.status_code != 201:
+              print(f"Error: {response.status_code}")
+              print(response.text)
+              exit(1)
+
+          print("Tweet posted successfully!")
+          print(f"Tweet URL: https://x.com/user/status/{response.json()['data']['id']}")
+          EOF
+        env:
+          NOTES: $NOTES
+          TITLE: $TITLE
+          URL: $URL
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
