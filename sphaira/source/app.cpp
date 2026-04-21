@@ -6,6 +6,7 @@
 #include "ui/error_box.hpp"
 
 #include "ui/menus/main_menu.hpp"
+#include "ui/menus/cheats_menu.hpp"
 
 #include "app.hpp"
 #include "log.hpp"

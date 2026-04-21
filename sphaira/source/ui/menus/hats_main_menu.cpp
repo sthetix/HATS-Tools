@@ -48,7 +48,7 @@ MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None}
     m_items = {
         {"Fetch HATS Pack", "Download and install HATS pack releases", "icons/fetch-hats.png"},
         {"Fetch Firmware", "Download firmware for installation via Daybreak", "icons/fetch-firmware.png"},
-        {"Cheats", "Download cheat codes from CheatSlips", "icons/cheats.png"},
+        {"Cheats", "Download cheat codes from nx-cheats-db", "icons/cheats.png"},
         {"Uninstall Components", "Remove installed components (except Atmosphere/Hekate)", "icons/uninstall-components.png"},
         {"File Browser", "Browse and manage files on SD Card", "icons/file-browser.png"},
         {"Advanced Options", "Configure application settings including logging", "icons/advanced-options.png"}

@@ -506,20 +506,25 @@ Result OpenFile(fs::Fs* fs, const FsPathReal& path, u32 mode, File* f) {
     f->m_fs = fs;
     f->m_mode = mode;
 
-    log_write("[FS] opening file: %s (mode: 0x%x)\n", path.s, mode);
+    FsPathReal effective_path{path};
+    if (!f->m_fs->IsNative()) {
+        effective_path = FsPathReal{AppendPath(f->m_fs->Root(), FsPath{path.s})};
+    }
+
+    log_write("[FS] opening file: %s (mode: 0x%x)\n", effective_path.s, mode);
 
     if (f->m_fs->IsNative()) {
         auto fs = (fs::FsNative*)f->m_fs;
-        R_TRY(fsFsOpenFile(&fs->m_fs, path, mode, &f->m_native));
+        R_TRY(fsFsOpenFile(&fs->m_fs, effective_path, mode, &f->m_native));
     } else {
         if ((mode & FsOpenMode_Read) && (mode & FsOpenMode_Write)) {
-            f->m_stdio = std::fopen(path, "rb+");
+            f->m_stdio = std::fopen(effective_path, "rb+");
         } else if (mode & FsOpenMode_Read) {
-            f->m_stdio = std::fopen(path, "rb");
+            f->m_stdio = std::fopen(effective_path, "rb");
         } else if (mode & FsOpenMode_Write) {
             // not possible to open file with just write and not append
             // or create or truncate. So rw it is!
-            f->m_stdio = std::fopen(path, "rb+");
+            f->m_stdio = std::fopen(effective_path, "rb+");
         }
 
         R_UNLESS(f->m_stdio, Result_FsStdioFailedToOpenFile);
@@ -532,7 +537,7 @@ Result OpenFile(fs::Fs* fs, const FsPathReal& path, u32 mode, File* f) {
         }
     }
 
-    log_write("[FS] opened file: %s\n", path.s);
+    log_write("[FS] opened file: %s\n", effective_path.s);
     R_SUCCEED();
 }
 
@@ -649,11 +654,16 @@ Result OpenDirectory(fs::Fs* fs, const FsPathReal& path, u32 mode, Dir* d) {
     d->m_fs = fs;
     d->m_mode = mode;
 
+    FsPathReal effective_path{path};
+    if (!d->m_fs->IsNative()) {
+        effective_path = FsPathReal{AppendPath(d->m_fs->Root(), FsPath{path.s})};
+    }
+
     if (d->m_fs->IsNative()) {
         auto fs = (fs::FsNative*)d->m_fs;
-        R_TRY(fsFsOpenDirectory(&fs->m_fs, path, mode, &d->m_native));
+        R_TRY(fsFsOpenDirectory(&fs->m_fs, effective_path, mode, &d->m_native));
     } else {
-        d->m_stdio = opendir(path);
+        d->m_stdio = opendir(effective_path);
         R_UNLESS(d->m_stdio, Result_FsStdioFailedToOpenDirectory);
     }
 

@@ -525,7 +525,8 @@ Result TransferInternal(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfu
         buffer_size = SMALL_BUFFER_SIZE;
     }
 
-    log_write("[TRANSFER] starting transfer (size: %lld, mode: %u, buffer: %llu)\n", size, mode, buffer_size);
+    log_write("[TRANSFER] starting transfer (size: %ld, mode: %u, buffer: %lu)\n",
+              size, static_cast<unsigned int>(mode), buffer_size);
 
     if (mode == Mode::SingleThreadedIfSmaller) {
         if (size <= buffer_size) {
@@ -674,7 +675,7 @@ Result TransferPull(ui::ProgressBox* pbox, s64 size, const ReadCallback& rfunc, 
 }
 
 Result TransferUnzip(ui::ProgressBox* pbox, void* zfile, fs::Fs* fs, const fs::FsPath& path, s64 size, u32 crc32, Mode mode) {
-    log_write("[ZIP] extracting: %s (size: %lld)\n", path.s, size);
+    log_write("[ZIP] extracting: %s (size: %ld)\n", path.s, size);
     Result rc;
     if (R_FAILED(rc = fs->CreateDirectoryRecursivelyWithPath(path)) && rc != FsError_PathAlreadyExists) {
         log_write("[ZIP] failed to create folder: %s 0x%04X\n", path.s, rc);

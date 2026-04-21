@@ -14,6 +14,8 @@ struct ScrollableText;
 
 namespace sphaira::ui::menu::hats {
 
+void RefreshCheatMetadataCache();
+
 // Cheat source types
 enum class CheatSource {
     Gbatemp,
@@ -206,6 +208,7 @@ private:
     void DeleteCheat();
     void ShowExistingCheats();
     void PreviewCheat();  // View cheat content before downloading
+    void RunBuildIdDiagnostics(bool fetch_on_success);
 
 private:
     CheatSource m_source;

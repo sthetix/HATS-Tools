@@ -33,3 +33,6 @@ build_patreon.sh
 
 # Claude
 .claude/
+
+# Local engineering notes
+cheat-detection.md
