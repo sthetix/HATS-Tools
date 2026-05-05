@@ -616,8 +616,6 @@ auto LookupBuildIdForCheats(u64 title_id, bool allow_nso_fallback = true) -> Bui
 
         if (installed_nca.failure_reason == InstalledNcaFailureReason::ContentMissing) {
             log_write("[Cheats] LookupBuildIdForCheats: installed Program NCA content missing for %016lx\n", title_id);
-            result.failure_reason = BuildIdFailureReason::GameNotFound;
-            return result;
         }
     }
 
