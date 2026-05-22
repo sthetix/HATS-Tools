@@ -11,6 +11,7 @@ old_code
 created_ncas
 assets/romfs/shaders
 .vscode/settings.json
+.devcontainer/
 .idea
 info/
 romfs/shaders
@@ -23,6 +24,7 @@ libs/tweeny
 
 compile_commands.json
 out
+payload/output/
 
 usb_test/
 __pycache__
