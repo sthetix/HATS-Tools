@@ -1909,6 +1909,109 @@ auto GetManualCheatImportPath(u64 title_id, const std::string& build_id) -> fs::
     return file_path;
 }
 
+auto IsCheatHeaderLine(const std::string& line) -> bool {
+    return line.size() >= 3 && line.front() == '[' && line.back() == ']';
+}
+
+auto IsHexCodeLine(const std::string& line) -> bool {
+    std::istringstream stream(line);
+    std::string part;
+    size_t count = 0;
+
+    while (stream >> part) {
+        if (part.size() != 8) {
+            return false;
+        }
+
+        for (const auto c : part) {
+            if (!std::isxdigit(static_cast<unsigned char>(c))) {
+                return false;
+            }
+        }
+
+        count++;
+    }
+
+    return count >= 2 && count <= 4;
+}
+
+auto NormalizeHexCodeLine(const std::string& line) -> std::string {
+    std::istringstream stream(line);
+    std::ostringstream out;
+    std::string part;
+    bool first = true;
+
+    while (stream >> part) {
+        std::transform(part.begin(), part.end(), part.begin(), [](unsigned char c) {
+            return static_cast<char>(std::toupper(c));
+        });
+
+        if (!first) {
+            out << ' ';
+        }
+        out << part;
+        first = false;
+    }
+
+    return out.str();
+}
+
+auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -> bool {
+    if (data.empty()) {
+        return false;
+    }
+
+    // Atmosphere/EdiZon cheat parsers can be picky about BOM-prefixed files.
+    size_t offset = 0;
+    if (data.size() >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) {
+        offset = 3;
+    } else if (data.size() >= 2 &&
+               ((data[0] == 0xFF && data[1] == 0xFE) || (data[0] == 0xFE && data[1] == 0xFF))) {
+        log_write("[Cheats] Manual import rejected UTF-16 cheat file\n");
+        return false;
+    }
+
+    std::string text(reinterpret_cast<const char*>(data.data() + offset), data.size() - offset);
+    if (!text.empty() && static_cast<unsigned char>(text.front()) == 0xEF) {
+        return false;
+    }
+
+    std::istringstream stream(text);
+    std::ostringstream sanitized;
+    std::string line;
+    bool found_cheat_header = false;
+    bool wrote_any_line = false;
+
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) {
+            line.pop_back();
+        }
+
+        std::string trimmed = line;
+        trimmed.erase(0, trimmed.find_first_not_of(" \t"));
+
+        if (!found_cheat_header) {
+            if (!IsCheatHeaderLine(trimmed)) {
+                continue;
+            }
+            found_cheat_header = true;
+            line = trimmed;
+        } else if (IsHexCodeLine(trimmed)) {
+            line = NormalizeHexCodeLine(trimmed);
+        }
+
+        sanitized << line << '\n';
+        wrote_any_line = true;
+    }
+
+    out = sanitized.str();
+    return found_cheat_header && wrote_any_line;
+}
+
 auto ImportManualCheatFile(u64 title_id, const fs::FsPath& source_path) -> Result {
     fs::FsNativeSd fs;
 
@@ -1920,8 +2023,9 @@ auto ImportManualCheatFile(u64 title_id, const fs::FsPath& source_path) -> Resul
 
     std::vector<u8> data;
     R_TRY(fs.read_entire_file(source_path, data));
-    if (data.empty()) {
-        log_write("[Cheats] Manual import rejected empty file: %s\n", source_path.s);
+    std::string sanitized_content;
+    if (!SanitizeManualCheatContent(data, sanitized_content)) {
+        log_write("[Cheats] Manual import rejected invalid cheat file: %s\n", source_path.s);
         return 1;
     }
 
@@ -1929,7 +2033,10 @@ auto ImportManualCheatFile(u64 title_id, const fs::FsPath& source_path) -> Resul
     R_TRY(fs.CreateDirectoryRecursively(cheats_dir.c_str()));
 
     const auto dest_path = GetManualCheatImportPath(title_id, build_id);
-    const auto content = std::span<const u8>(data.data(), data.size());
+    const auto content = std::span<const u8>(
+        reinterpret_cast<const u8*>(sanitized_content.data()),
+        sanitized_content.size()
+    );
     R_TRY(fs.write_entire_file(dest_path, content));
 
     log_write("[Cheats] Imported manual cheat %s to %s\n", source_path.s, dest_path.s);
