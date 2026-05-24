@@ -9,6 +9,8 @@ namespace sphaira::manifest {
 
 // Path to manifest on SD card root
 constexpr const char* MANIFEST_PATH = "/manifest.json";
+constexpr const char* DISABLED_COMPONENTS_PATH = "/config/hats-tools/disabled-components.json";
+constexpr const char* DISABLED_COMPONENTS_DIR = "/config/hats-tools/disabled-components";
 
 // Protected component IDs that cannot be uninstalled
 constexpr const char* PROTECTED_COMPONENTS[] = {
@@ -36,6 +38,10 @@ struct Manifest {
     std::map<std::string, Component> components;
 };
 
+struct DisabledComponents {
+    std::map<std::string, Component> components;
+};
+
 // Load manifest from /manifest.json
 // Returns true on success, false if file doesn't exist or parse error
 bool load(Manifest& out);
@@ -47,6 +53,13 @@ bool save(const Manifest& m);
 // Check if manifest exists
 bool exists();
 
+// Load disabled component metadata.
+// Missing disabled metadata is treated as an empty list.
+bool loadDisabled(DisabledComponents& out);
+
+// Save disabled component metadata.
+bool saveDisabled(const DisabledComponents& disabled);
+
 // Get list of all components (for uninstaller menu)
 std::vector<Component> getComponents(const Manifest& m);
 
@@ -56,6 +69,15 @@ std::vector<Component> getUninstallableComponents(const Manifest& m);
 // Remove a component from manifest and delete its files
 // Returns true on success
 bool removeComponent(Manifest& m, const std::string& id, fs::Fs* fs);
+
+// Move component files into disabled storage and remove it from the active manifest.
+bool disableComponent(Manifest& m, DisabledComponents& disabled, const std::string& id, fs::Fs* fs);
+
+// Move disabled component files back and restore it to the active manifest.
+bool enableComponent(Manifest& m, DisabledComponents& disabled, const std::string& id, fs::Fs* fs);
+
+// Permanently remove disabled component files and metadata.
+bool deleteDisabledComponent(DisabledComponents& disabled, const std::string& id, fs::Fs* fs);
 
 // Remove multiple components
 // Returns number of successfully removed components

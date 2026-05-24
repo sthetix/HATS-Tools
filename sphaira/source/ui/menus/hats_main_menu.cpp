@@ -81,7 +81,7 @@ constexpr const u8 ICON_CHEATS[]{
 };
 
 constexpr const u8 ICON_UNINSTALL[]{
-    #embed <icons/uninstall-components.png>
+    #embed <icons/component-manager.png>
 };
 
 constexpr const u8 ICON_FILE_BROWSER[]{
@@ -114,7 +114,7 @@ MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None}
         {"Fetch HATS Pack", "Download and install HATS pack releases", "icons/fetch-hats.png"},
         {"Fetch Firmware", "Download firmware for installation via Daybreak", "icons/fetch-firmware.png"},
         {"Cheats", "Download cheat codes from nx-cheats-db", "icons/cheats.png"},
-        {"Uninstall Components", "Remove installed components (except Atmosphere/Hekate)", "icons/uninstall-components.png"},
+        {"Component Manager", "Disable, enable, or delete installed components", "icons/component-manager.png"},
         {"File Browser", "Browse and manage files on SD Card", "icons/file-browser.png"},
         {"Homebrew App Shop", "Download and update homebrew apps", "icons/app-shop.png"},
         {"Game Hub", "Manage installed games and game packages", "icons/game-hub.png"},
@@ -274,7 +274,7 @@ void MainMenu::OnSelect() {
         case 2: // Cheats
             App::Push<CheatsMenu>();
             break;
-        case 3: // Uninstall Components
+        case 3: // Component Manager
             App::Push<UninstallerMenu>();
             break;
         case 4: // File Browser

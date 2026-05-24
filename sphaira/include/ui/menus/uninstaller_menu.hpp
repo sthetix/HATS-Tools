@@ -19,11 +19,16 @@ struct ComponentItem {
     bool is_selected{};
 };
 
+enum class ComponentView {
+    Installed,
+    Disabled,
+};
+
 struct UninstallerMenu final : MenuBase {
     UninstallerMenu();
     ~UninstallerMenu();
 
-    auto GetShortTitle() const -> const char* override { return "Uninstaller"; }
+    auto GetShortTitle() const -> const char* override { return "Components"; }
     void Update(Controller* controller, TouchInfo* touch) override;
     void Draw(NVGcontext* vg, Theme* theme) override;
     void OnFocusGained() override;
@@ -31,20 +36,26 @@ struct UninstallerMenu final : MenuBase {
 private:
     void SetIndex(s64 index);
     void LoadComponents();
+    void SwitchView();
     void ToggleSelection();
-    void DeleteSelected();
+    void DisableSelected();
+    void EnableSelected();
+    void DeleteSelectedPermanently();
     void SelectAll();
     void DeselectAll();
     void UpdateSubheading();
+    void UpdateActions();
 
     size_t GetSelectedCount() const;
 
 private:
     manifest::Manifest m_manifest;
+    manifest::DisabledComponents m_disabled;
     std::vector<ComponentItem> m_items;
     std::set<std::string> m_selected_ids;
     s64 m_index{};
     std::unique_ptr<List> m_list;
+    ComponentView m_view{ComponentView::Installed};
 
     bool m_loaded{false};
     std::string m_error_message;

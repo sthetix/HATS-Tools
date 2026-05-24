@@ -16,9 +16,19 @@ namespace sphaira::ui::menu::hats {
 
 namespace {
 
-auto DeleteComponents(ProgressBox* pbox, manifest::Manifest& manifest,
-                       const std::vector<std::string>& ids) -> Result {
-    log_write("[UNINSTALL] starting uninstallation of %zu components\n", ids.size());
+enum class ComponentOperation {
+    Disable,
+    Enable,
+    DeleteInstalled,
+    DeleteDisabled,
+};
+
+auto ProcessComponents(ProgressBox* pbox, manifest::Manifest& manifest,
+                       manifest::DisabledComponents& disabled,
+                       const std::vector<std::string>& ids,
+                       ComponentOperation operation) -> Result {
+    log_write("[COMPONENTS] starting operation %d on %zu components\n",
+              static_cast<int>(operation), ids.size());
 
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
@@ -34,51 +44,69 @@ auto DeleteComponents(ProgressBox* pbox, manifest::Manifest& manifest,
             break;
         }
 
-        auto it = manifest.components.find(id);
-        if (it == manifest.components.end()) {
-            log_write("[UNINSTALL] component not found in manifest: %s\n", id.c_str());
+        current++;
+        const bool disabled_op = operation == ComponentOperation::Enable ||
+                                 operation == ComponentOperation::DeleteDisabled;
+        auto& components = disabled_op ? disabled.components : manifest.components;
+        auto it = components.find(id);
+        if (it == components.end()) {
+            log_write("[COMPONENTS] component not found: %s\n", id.c_str());
             failed_count++;
             continue;
         }
 
         const auto& comp = it->second;
-        current++;
 
-        log_write("[UNINSTALL] [%zu/%zu] removing %s (%s)\n",
+        log_write("[COMPONENTS] [%zu/%zu] processing %s (%s)\n",
                   current, total, comp.name.c_str(), id.c_str());
 
-        pbox->NewTransfer("Removing " + comp.name + " (" +
+        pbox->NewTransfer("Processing " + comp.name + " (" +
                          std::to_string(current) + "/" + std::to_string(total) + ")");
 
-        // Use the manifest function to remove component and delete files
-        bool success = manifest::removeComponent(manifest, id, static_cast<fs::Fs*>(&fs));
+        bool success{};
+        switch (operation) {
+            case ComponentOperation::Disable:
+                success = manifest::disableComponent(manifest, disabled, id, static_cast<fs::Fs*>(&fs));
+                break;
+            case ComponentOperation::Enable:
+                success = manifest::enableComponent(manifest, disabled, id, static_cast<fs::Fs*>(&fs));
+                break;
+            case ComponentOperation::DeleteInstalled:
+                success = manifest::removeComponent(manifest, id, static_cast<fs::Fs*>(&fs));
+                break;
+            case ComponentOperation::DeleteDisabled:
+                success = manifest::deleteDisabledComponent(disabled, id, static_cast<fs::Fs*>(&fs));
+                break;
+        }
+
         if (!success) {
-            log_write("[UNINSTALL] failed to remove component %s\n", id.c_str());
+            log_write("[COMPONENTS] failed to process component %s\n", id.c_str());
             failed_count++;
-            // Continue with other components even if one fails
         } else {
-            log_write("[UNINSTALL] successfully removed component %s\n", id.c_str());
+            log_write("[COMPONENTS] successfully processed component %s\n", id.c_str());
             success_count++;
         }
     }
 
-    log_write("[UNINSTALL] uninstallation summary: %d succeeded, %d failed\n",
+    log_write("[COMPONENTS] operation summary: %d succeeded, %d failed\n",
               success_count, failed_count);
 
-    // Save updated manifest
-    log_write("[UNINSTALL] saving updated manifest\n");
     if (!manifest::save(manifest)) {
-        log_write("[UNINSTALL] failed to save manifest\n");
+        log_write("[COMPONENTS] failed to save manifest\n");
         return 0x1;
     }
-    log_write("[UNINSTALL] manifest saved successfully\n");
 
-    return 0;
+    if (!manifest::saveDisabled(disabled)) {
+        log_write("[COMPONENTS] failed to save disabled components\n");
+        return 0x1;
+    }
+
+    return failed_count == 0 ? 0 : 0x1;
 }
 
 } // namespace
 
-UninstallerMenu::UninstallerMenu() : MenuBase{"Uninstall Components", MenuFlag_None} {
+UninstallerMenu::UninstallerMenu() : MenuBase{"Component Manager", MenuFlag_None} {
     this->SetActions(
         std::make_pair(Button::A, Action{"Toggle"_i18n, [this](){
             if (!m_items.empty()) {
@@ -88,9 +116,18 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Uninstall Components", MenuFlag_N
         std::make_pair(Button::B, Action{"Back"_i18n, [this](){
             SetPop();
         }}),
-        std::make_pair(Button::X, Action{"Delete"_i18n, [this](){
+        std::make_pair(Button::X, Action{"Disable"_i18n, [this](){
             if (GetSelectedCount() > 0) {
-                DeleteSelected();
+                if (m_view == ComponentView::Installed) {
+                    DisableSelected();
+                } else {
+                    EnableSelected();
+                }
+            }
+        }}),
+        std::make_pair(Button::START, Action{"Delete"_i18n, [this](){
+            if (GetSelectedCount() > 0) {
+                DeleteSelectedPermanently();
             }
         }}),
         std::make_pair(Button::Y, Action{"Select All"_i18n, [this](){
@@ -98,6 +135,9 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Uninstall Components", MenuFlag_N
         }}),
         std::make_pair(Button::L, Action{"Deselect"_i18n, [this](){
             DeselectAll();
+        }}),
+        std::make_pair(Button::R, Action{"View"_i18n, [this](){
+            SwitchView();
         }})
     );
 
@@ -137,13 +177,18 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
         god_mode ? theme->GetColour(ThemeEntryID_ERROR) : theme->GetColour(ThemeEntryID_TEXT_INFO),
         god_mode ? "GOD MODE: All components can be removed!" : "Atmosphere and Hekate are protected and cannot be removed.");
 
+    gfx::drawTextArgs(vg, 1220.f, GetY() + 10.f, 16.f,
+        NVG_ALIGN_RIGHT | NVG_ALIGN_TOP,
+        theme->GetColour(ThemeEntryID_TEXT_INFO),
+        m_view == ComponentView::Installed ? "Installed" : "Disabled");
+
     // Draw selection count
     size_t selected = GetSelectedCount();
     if (selected > 0) {
         gfx::drawTextArgs(vg, 80.f, GetY() + 32.f, 18.f,
             NVG_ALIGN_LEFT | NVG_ALIGN_TOP,
             theme->GetColour(ThemeEntryID_TEXT),
-            "%zu component(s) selected for removal", selected);
+            "%zu component(s) selected", selected);
     }
 
     if (!m_error_message.empty()) {
@@ -158,7 +203,7 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
         gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f, 24.f,
             NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
             theme->GetColour(ThemeEntryID_TEXT_INFO),
-            "No components found in manifest");
+            m_view == ComponentView::Installed ? "No installed components found" : "No disabled components found");
         return;
     }
 
@@ -197,8 +242,11 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
                 "X");
         } else {
             // Draw checkbox outline
-            gfx::drawRect(vg, cb_x, cb_y, checkbox_size, checkbox_size,
-                theme->GetColour(ThemeEntryID_LINE));
+            nvgBeginPath(vg);
+            nvgRect(vg, cb_x, cb_y, checkbox_size, checkbox_size);
+            nvgStrokeWidth(vg, 2.f);
+            nvgStrokeColor(vg, theme->GetColour(ThemeEntryID_LINE));
+            nvgStroke(vg);
 
             // Fill if selected
             if (item.is_selected) {
@@ -229,6 +277,11 @@ void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
                 NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
                 theme->GetColour(ThemeEntryID_TEXT_INFO),
                 "[Protected]");
+        } else if (m_view == ComponentView::Disabled) {
+            gfx::drawTextArgs(vg, x + w - 15.f, y + h / 2.f, 14.f,
+                NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
+                theme->GetColour(ThemeEntryID_TEXT_INFO),
+                "[Disabled]");
         }
     });
 
@@ -270,15 +323,25 @@ void UninstallerMenu::LoadComponents() {
         return;
     }
 
+    if (!manifest::loadDisabled(m_disabled)) {
+        m_error_message = "Failed to parse disabled components";
+        m_loaded = true;
+        log_write("[UNINSTALL] failed to load disabled components\n");
+        return;
+    }
+
+    const auto& components = m_view == ComponentView::Installed ?
+        m_manifest.components : m_disabled.components;
+
     // Convert components to display items
-    for (const auto& [id, comp] : m_manifest.components) {
+    for (const auto& [id, comp] : components) {
         ComponentItem item;
         item.id = id;
         item.name = comp.name;
         item.version = comp.version;
         item.category = comp.category;
         item.file_count = comp.files.size();
-        item.is_protected = manifest::isProtectedComponent(id);
+        item.is_protected = m_view == ComponentView::Installed && manifest::isProtectedComponent(id);
         item.is_selected = false;
         m_items.push_back(item);
     }
@@ -296,14 +359,25 @@ void UninstallerMenu::LoadComponents() {
     });
 
     m_loaded = true;
-    log_write("[UNINSTALL] loaded %zu components (%zu protected)\n",
+    log_write("[UNINSTALL] loaded %zu components (%zu protected) for view %d\n",
               m_items.size(),
               std::count_if(m_items.begin(), m_items.end(),
-                           [](const ComponentItem& i) { return i.is_protected; }));
+                           [](const ComponentItem& i) { return i.is_protected; }),
+              static_cast<int>(m_view));
 
     if (!m_items.empty()) {
         SetIndex(0);
+    } else {
+        UpdateSubheading();
     }
+    UpdateActions();
+}
+
+void UninstallerMenu::SwitchView() {
+    m_view = m_view == ComponentView::Installed ? ComponentView::Disabled : ComponentView::Installed;
+    m_loaded = false;
+    m_index = 0;
+    LoadComponents();
 }
 
 void UninstallerMenu::ToggleSelection() {
@@ -329,59 +403,129 @@ void UninstallerMenu::ToggleSelection() {
     UpdateSubheading();
 }
 
-void UninstallerMenu::DeleteSelected() {
+void UninstallerMenu::DisableSelected() {
     size_t count = GetSelectedCount();
     if (count == 0) {
         return;
     }
 
-    std::vector<std::string> ids_to_delete;
+    std::vector<std::string> ids;
     for (const auto& item : m_items) {
         if (item.is_selected && !item.is_protected) {
-            ids_to_delete.push_back(item.id);
+            ids.push_back(item.id);
         }
     }
 
-    std::string message = "Delete " + std::to_string(count) + " component(s)?\n\n";
-    message += "This action cannot be undone!";
+    std::string message = "Disable " + std::to_string(count) + " component(s)?\n\n";
+    message += "Files will be moved to disabled storage.";
 
     App::Push<OptionBox>(
-        message,
-        "Cancel"_i18n, "Delete"_i18n, 0,
-        [this, ids_to_delete, count](auto op_index) {
+        message, "Cancel"_i18n, "Disable"_i18n, 0,
+        [this, ids, count](auto op_index) {
             if (!op_index || *op_index != 1) {
                 return;
             }
 
-            App::Push<ProgressBox>(0, "Uninstalling"_i18n, std::to_string(count) + " components",
-                [this, ids_to_delete](auto pbox) -> Result {
-                    return DeleteComponents(pbox, m_manifest, ids_to_delete);
+            App::Push<ProgressBox>(0, "Disabling"_i18n, std::to_string(count) + " components",
+                [this, ids](auto pbox) -> Result {
+                    return ProcessComponents(pbox, m_manifest, m_disabled, ids, ComponentOperation::Disable);
                 },
-                [this, count, ids_to_delete](Result rc) {
+                [this, count](Result rc) {
                     if (R_SUCCEEDED(rc)) {
-                        App::Notify("Removed " + std::to_string(count) + " component(s)");
+                        App::Notify("Disabled " + std::to_string(count) + " component(s)");
 
-                        // Show summary of what was deleted
-                        std::string deleted_list = "Successfully removed:\n";
-                        for (const auto& id : ids_to_delete) {
-                            auto it = std::find_if(m_items.begin(), m_items.end(),
-                                [&id](const ComponentItem& item) { return item.id == id; });
-                            if (it != m_items.end()) {
-                                deleted_list += "- " + it->name + " (" + it->version + ")\n";
-                            }
-                        }
-                        deleted_list += "\nFiles have been deleted from SD card.";
-
-                        App::Push<OptionBox>(
-                            deleted_list,
-                            "OK"_i18n
-                        );
-
-                        // Reload the list
                         m_loaded = false;
                         LoadComponents();
                     } else {
-                        App::Push<ErrorBox>(rc, "Failed to remove components");
+                        m_loaded = false;
+                        LoadComponents();
+                        App::Push<ErrorBox>(rc, "Failed to disable components");
+                    }
+                }
+            );
+        }
+    );
+}
+
+void UninstallerMenu::EnableSelected() {
+    size_t count = GetSelectedCount();
+    if (count == 0) {
+        return;
+    }
+
+    std::vector<std::string> ids;
+    for (const auto& item : m_items) {
+        if (item.is_selected) {
+            ids.push_back(item.id);
+        }
+    }
+
+    App::Push<OptionBox>(
+        "Enable " + std::to_string(count) + " component(s)?",
+        "Cancel"_i18n, "Enable"_i18n, 0,
+        [this, ids, count](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            App::Push<ProgressBox>(0, "Enabling"_i18n, std::to_string(count) + " components",
+                [this, ids](auto pbox) -> Result {
+                    return ProcessComponents(pbox, m_manifest, m_disabled, ids, ComponentOperation::Enable);
+                },
+                [this, count](Result rc) {
+                    if (R_SUCCEEDED(rc)) {
+                        App::Notify("Enabled " + std::to_string(count) + " component(s)");
+                        m_loaded = false;
+                        LoadComponents();
+                    } else {
+                        m_loaded = false;
+                        LoadComponents();
+                        App::Push<ErrorBox>(rc, "Failed to enable components");
+                    }
+                }
+            );
+        }
+    );
+}
+
+void UninstallerMenu::DeleteSelectedPermanently() {
+    size_t count = GetSelectedCount();
+    if (count == 0) {
+        return;
+    }
+
+    std::vector<std::string> ids;
+    for (const auto& item : m_items) {
+        if (item.is_selected && !item.is_protected) {
+            ids.push_back(item.id);
+        }
+    }
+
+    std::string message = "Permanently delete " + std::to_string(count) + " component(s)?\n\n";
+    message += "This action cannot be undone.";
+    const auto operation = m_view == ComponentView::Installed ?
+        ComponentOperation::DeleteInstalled : ComponentOperation::DeleteDisabled;
+
+    App::Push<OptionBox>(
+        message, "Cancel"_i18n, "Delete"_i18n, 0,
+        [this, ids, count, operation](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            App::Push<ProgressBox>(0, "Deleting"_i18n, std::to_string(count) + " components",
+                [this, ids, operation](auto pbox) -> Result {
+                    return ProcessComponents(pbox, m_manifest, m_disabled, ids, operation);
+                },
+                [this, count](Result rc) {
+                    if (R_SUCCEEDED(rc)) {
+                        App::Notify("Deleted " + std::to_string(count) + " component(s)");
+                        m_loaded = false;
+                        LoadComponents();
+                    } else {
+                        m_loaded = false;
+                        LoadComponents();
+                        App::Push<ErrorBox>(rc, "Failed to delete components");
                     }
                 }
             );
@@ -410,11 +554,27 @@ void UninstallerMenu::DeselectAll() {
 void UninstallerMenu::UpdateSubheading() {
     size_t selected = GetSelectedCount();
     if (selected > 0) {
-        this->SetSubHeading(std::to_string(selected) + " selected");
+        this->SetSubHeading((m_view == ComponentView::Installed ? "Installed: " : "Disabled: ") +
+            std::to_string(selected) + " selected");
     } else {
         const auto index = m_items.empty() ? 0 : m_index + 1;
-        this->SetSubHeading(std::to_string(index) + " / " + std::to_string(m_items.size()));
+        this->SetSubHeading((m_view == ComponentView::Installed ? "Installed: " : "Disabled: ") +
+            std::to_string(index) + " / " + std::to_string(m_items.size()));
     }
+}
+
+void UninstallerMenu::UpdateActions() {
+    SetAction(Button::X, Action{m_view == ComponentView::Installed ? "Disable"_i18n : "Enable"_i18n, [this](){
+        if (GetSelectedCount() == 0) {
+            return;
+        }
+
+        if (m_view == ComponentView::Installed) {
+            DisableSelected();
+        } else {
+            EnableSelected();
+        }
+    }});
 }
 
 size_t UninstallerMenu::GetSelectedCount() const {

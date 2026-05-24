@@ -11,7 +11,7 @@ A comprehensive tool for the Nintendo Switch that allows you to:
 - **Fetch HATS Pack** - Download and install HATS pack releases
 - **Fetch Firmware** - Download firmware for installation via Daybreak
 - **Cheats Manager** - Download and manage game cheats from nx-cheats-db and installed cheat files
-- **Uninstall Components** - Remove installed components (except Atmosphere/Hekate)
+- **Component Manager** - Disable, enable, or permanently delete installed components
 - **File Browser** - Browse, manage, and extract files on your SD card
 - **Homebrew App Shop** - Browse, install, and update homebrew apps
 - **Game Hub** - Manage installed games, package installs, saves, and game cards
