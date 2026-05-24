@@ -8,9 +8,13 @@ A comprehensive tool for the Nintendo Switch that allows you to:
 
 - **Fetch HATS Pack** - Download and install HATS pack releases
 - **Fetch Firmware** - Download firmware for installation via Daybreak
+- **Cheats Manager** - Download and manage game cheats from nx-cheats-db and installed cheat files
 - **Uninstall Components** - Remove installed components (except Atmosphere/Hekate)
 - **File Browser** - Browse, manage, and extract files on your SD card
-- **Cheats Manager** - Download and manage game cheats from multiple sources
+- **Homebrew App Shop** - Browse, install, and update homebrew apps
+- **Game Hub** - Manage installed games, package installs, saves, and game cards
+- **Network Tools** - Use GitHub downloads, the web browser, FTP/MTP, and USB install tools
+- **Wipe SYSMMC** - Reset SYSMMC (OFW/Stock) with confirmation and countdown protection
 
 ## Installation
 
@@ -24,15 +28,45 @@ A comprehensive tool for the Nintendo Switch that allows you to:
 
 ## Features
 
+### HATS Pack and Firmware Downloads
+Download HATS pack releases and firmware packages directly from configured GitHub release sources. HATS pack downloads can be staged for the HATS Installer Payload, with install modes for overwrite or replacement-style installs.
+
+### Game Hub
+Game Hub groups the restored Sphaira game tools into one place:
+
+- **Installed Games**: Browse and manage installed titles
+- **Install NSP/XCI**: Install NSP, XCI, NSZ, and XCZ packages from the file browser
+- **Saves**: Backup and restore save data
+- **Game Card**: View, install, and export inserted game cards
+- **Install Options**: Configure package installation behavior
+- **Export Options**: Configure game and game card exports
+
+### Network Tools
+Network Tools collects online and transfer workflows:
+
+- **GitHub Downloads**: Download releases from configured GitHub repositories
+- **Web Browser**: Open built-in browser shortcuts or enter a custom URL
+- **FTP**: Use FTP install and FTP server options
+- **MTP**: Use MTP install and responder options
+- **USB Install**: Install game packages over USB
+
+### Homebrew App Shop
+Browse the homebrew app store from HATS Tools, install new homebrew apps, and update existing apps.
+
 ### Cheats Manager
 The cheats manager provides a comprehensive solution for managing game cheats on your Switch:
 
-- **Multiple Sources**: Download cheats from CheatSlips and nx-cheats-db (local database)
+- **nx-cheats-db Source**: Download cheats from the bundled/local nx-cheats-db flow
 - **View Installed Cheats**: Browse all games with cheats currently installed on your system
 - **Cheat Preview**: Preview cheat codes before downloading them
 - **Easy Management**: Delete individual cheat files or view detailed cheat information
 - **Automatic Detection**: Automatically detects installed games and their build IDs
-- **CheatSlips Integration**: Login support for CheatSlips to access premium cheat content
+- **Fallback Detection**: Uses installed title metadata and build ID fallbacks when direct detection fails
+
+### Wipe SYSMMC
+Wipe SYSMMC resets SYSMMC (OFW/Stock) to factory defaults. The flow includes a warning, countdown, cancel option, and reboot attempt after the wipe completes.
+
+**Warning**: This is destructive and cannot be undone. Only use it when you understand exactly what will be wiped.
 
 ### Automatic Backup
 Before installing a HATS pack, the tool can automatically back up your existing `/atmosphere` and `/bootloader` folders to `/sdbackup/` with timestamps (e.g., `/sdbackup/atmosphere_20231225_143000`). This feature can be toggled in the Advanced Options menu.
