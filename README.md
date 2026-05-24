@@ -4,6 +4,8 @@
   <img src="images/preview.jpg" width="65%" />
 </p>
 
+HATS-Tools is based on [Sphaira](https://github.com/ITotalJustice/sphaira) by [ITotalJustice](https://github.com/ITotalJustice), modified and extended with HATS-focused workflows.
+
 A comprehensive tool for the Nintendo Switch that allows you to:
 
 - **Fetch HATS Pack** - Download and install HATS pack releases
@@ -113,7 +115,7 @@ Note: If these settings are not present in your config.ini, the application will
 
 ## Building from source
 
-This project is based on Sphaira code, but stripped down to the essentials.
+This project is based on [Sphaira](https://github.com/ITotalJustice/sphaira) by [ITotalJustice](https://github.com/ITotalJustice), with HATS-specific changes and additional tooling.
 
 You will first need to install [devkitPro](https://devkitpro.org/wiki/Getting_Started).
 
@@ -136,6 +138,7 @@ The output will be found in `out/hats-tools.zip`
 
 ## Credits
 
+- [Sphaira](https://github.com/ITotalJustice/sphaira) by [ITotalJustice](https://github.com/ITotalJustice) - original project HATS-Tools is based on
 - [libpulsar](https://github.com/ITotalJustice/switch-libpulsar)
 - [nanovg-deko3d](https://github.com/ITotalJustice/nanovg-deko3d)
 - [stb](https://github.com/nothings/stb)
