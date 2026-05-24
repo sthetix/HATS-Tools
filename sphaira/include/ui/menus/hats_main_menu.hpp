@@ -28,6 +28,12 @@ private:
     void OnSelect();
     void RefreshVersionInfo();
     void LoadIcons();
+    void StartWipeSysmmcFlow();
+    void StartWipeCountdown();
+    void CancelWipeCountdown();
+    void RunWipeSysmmc();
+    auto GetWipeCountdownSecondsRemaining() const -> s64;
+    void DrawWipeCountdown(NVGcontext* vg, Theme* theme);
 
 private:
     std::vector<MainMenuItem> m_items;
@@ -42,6 +48,11 @@ private:
     std::string m_firmware_version;
     std::string m_atmosphere_version;
     bool m_is_erista{true};
+
+    bool m_wipe_countdown_active{false};
+    bool m_wipe_in_progress{false};
+    u64 m_wipe_countdown_start_tick{};
+    s64 m_wipe_countdown_seconds{10};
 };
 
 } // namespace sphaira::ui::menu::hats

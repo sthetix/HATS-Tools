@@ -7,7 +7,7 @@ option(ENABLE_NSZ "enables exporting to nsz" ON)
 # lib options.
 option(ENABLE_LIBUSBHSFS "enables FAT/exFAT hdd mounting" OFF)
 option(ENABLE_LIBUSBDVD "enables cd/dvd/iso/cue mounting" OFF)
-option(ENABLE_FTPSRV "enables MTP server support" OFF)
+option(ENABLE_FTPSRV "enables FTP server support" OFF)
 option(ENABLE_LIBHAZE "enables MTP server support" OFF)
 
 # audio options.
@@ -32,7 +32,7 @@ option(ENABLE_DEVOPTAB_SFTP "" OFF)
 # MAJOR: incompatible changes
 # MINOR: new features (backwards compatible)
 # PATCH: bug fixes (backwards compatible)
-set(HATS_TOOLS_VERSION "1.5.7")
+set(HATS_TOOLS_VERSION "1.6.0")
 set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
 project(hats-tools
@@ -78,11 +78,21 @@ add_executable(hats-tools
     source/ui/menus/homebrew.cpp
     source/ui/menus/main_menu.cpp
     source/ui/menus/menu_base.cpp
+    source/ui/menus/save_menu.cpp
+    source/ui/menus/usb_menu.cpp
     source/ui/menus/ghdl.cpp
+    source/ui/menus/gc_menu.cpp
+    source/ui/menus/game_menu.cpp
+    source/ui/menus/game_meta_menu.cpp
+    source/ui/menus/game_nca_menu.cpp
     source/ui/menus/grid_menu_base.cpp
+    source/ui/menus/install_stream_menu_base.cpp
 
     # HATS Tools menus
     source/ui/menus/hats_main_menu.cpp
+    source/ui/menus/hats_game_hub_menu.cpp
+    source/ui/menus/hats_network_menu.cpp
+    source/ui/menus/hats_settings_menu.cpp
     source/ui/menus/hats_pack_menu.cpp
     source/ui/menus/pack_details_menu.cpp
     source/ui/menus/firmware_menu.cpp

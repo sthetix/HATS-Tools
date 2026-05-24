@@ -84,6 +84,8 @@ public:
     static auto IsHbmenu() -> bool;
 
     static auto GetLogEnable() -> bool;
+    static auto GetMtpEnable() -> bool;
+    static auto GetFtpEnable() -> bool;
     static auto GetSkipBackupWarning() -> bool;
     static auto GetBackupEnabled() -> bool;
     static auto GetKeepZipsEnabled() -> bool;
@@ -98,6 +100,8 @@ public:
     static auto GetNszBlockExponent() -> long;
 
     static void SetLogEnable(bool enable);
+    static void SetMtpEnable(bool enable);
+    static void SetFtpEnable(bool enable);
     static void SetSkipBackupWarning(bool enable);
     static void SetBackupEnabled(bool enable);
     static void SetKeepZipsEnabled(bool enable);
@@ -110,6 +114,16 @@ public:
 
     static void DisplayMenuOptions(bool left_side = true);
     static void DisplayAdvancedOptions(bool left_side = true);
+    static void DisplayHatsInstallOptions(bool left_side = true);
+    static void DisplayHatsThemeOptions(bool left_side = true);
+    static void DisplayPowerUserOptions(bool left_side = true);
+    static void DisplayInstallOptions(bool left_side = true);
+    static void DisplayDumpOptions(bool left_side = true);
+    static void DisplayFtpOptions(bool left_side = true);
+    static void DisplayMtpOptions(bool left_side = true);
+
+    static auto GetInstallEnable() -> bool;
+    static void ShowEnableInstallPrompt();
 
     void Draw();
     void Update();
@@ -232,7 +246,7 @@ public:
     static constexpr inline auto CONFIG_PATH = "/config/hats-tools/config.ini";
     static constexpr inline auto PLAYLOG_PATH = "/config/hats-tools/playlog.ini";
     static constexpr inline auto INI_SECTION = "config";
-    static constexpr inline auto DEFAULT_THEME_PATH = "romfs:/themes/default_theme.ini";
+    static constexpr inline auto DEFAULT_THEME_PATH = "romfs:/themes/black_theme.ini";
 
     fs::FsPath m_app_path;
     u64 m_start_timestamp{};
@@ -263,6 +277,8 @@ public:
     bool m_quit{};
 
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", false};
+    option::OptionBool m_mtp_enabled{INI_SECTION, "mtp_enabled", false};
+    option::OptionBool m_ftp_enabled{INI_SECTION, "ftp_enabled", false};
     option::OptionBool m_skip_backup_warning{INI_SECTION, "skip_backup_warning", false};
     option::OptionBool m_backup_enabled{INI_SECTION, "backup_enabled", true};
     option::OptionBool m_keep_zips{INI_SECTION, "keep_zips", false};
@@ -299,11 +315,49 @@ public:
     option::OptionLong m_lower_system_version{INI_SECTION, "lower_system_version", 0};
 
     // NSZ compression options (for NSZ export via FileBrowser)
+    option::OptionBool m_dump_app_folder{"dump", "app_folder", true};
+    option::OptionBool m_dump_append_folder_with_xci{"dump", "append_folder_with_xci", true};
+    option::OptionBool m_dump_trim_xci{"dump", "trim_xci", false};
+    option::OptionBool m_dump_label_trim_xci{"dump", "label_trim_xci", false};
+    option::OptionBool m_dump_convert_to_common_ticket{"dump", "convert_to_common_ticket", true};
     option::OptionLong m_nsz_compress_level{"dump", "nsz_compress_level", 3};
     option::OptionLong m_nsz_compress_threads{"dump", "nsz_compress_threads", 3};
     option::OptionBool m_nsz_compress_ldm{"dump", "nsz_compress_ldm", false};
     option::OptionLong m_nsz_compress_block{"dump", "nsz_compress_block", 20};
     option::OptionLong m_nsz_compress_block_exponent{"dump", "nsz_compress_block_exponent", 20};
+
+    // FTP options.
+    option::OptionLong m_ftp_port{"ftp", "port", 5000};
+    option::OptionBool m_ftp_anon{"ftp", "anon", true};
+    option::OptionString m_ftp_user{"ftp", "user", ""};
+    option::OptionString m_ftp_pass{"ftp", "pass", ""};
+    option::OptionBool m_ftp_show_album{"ftp", "show_album", true};
+    option::OptionBool m_ftp_show_ams_contents{"ftp", "show_ams_contents", false};
+    option::OptionBool m_ftp_show_bis_storage{"ftp", "show_bis_storage", false};
+    option::OptionBool m_ftp_show_bis_fs{"ftp", "show_bis_fs", false};
+    option::OptionBool m_ftp_show_content_system{"ftp", "show_content_system", false};
+    option::OptionBool m_ftp_show_content_user{"ftp", "show_content_user", false};
+    option::OptionBool m_ftp_show_content_sd{"ftp", "show_content_sd", false};
+    option::OptionBool m_ftp_show_content_sd0{"ftp", "show_content_sd0", false};
+    option::OptionBool m_ftp_show_custom_system{"ftp", "show_custom_system", false};
+    option::OptionBool m_ftp_show_custom_sd{"ftp", "show_custom_sd", false};
+    option::OptionBool m_ftp_show_games{"ftp", "show_games", true};
+    option::OptionBool m_ftp_show_install{"ftp", "show_install", true};
+    option::OptionBool m_ftp_show_mounts{"ftp", "show_mounts", false};
+    option::OptionBool m_ftp_show_switch{"ftp", "show_switch", false};
+
+    // MTP options.
+    option::OptionLong m_mtp_vid{"mtp", "vid", 0x057e};
+    option::OptionLong m_mtp_pid{"mtp", "pid", 0x201d};
+    option::OptionBool m_mtp_allocate_file{"mtp", "allocate_file", true};
+    option::OptionBool m_mtp_show_album{"mtp", "show_album", true};
+    option::OptionBool m_mtp_show_content_sd{"mtp", "show_content_sd", false};
+    option::OptionBool m_mtp_show_content_system{"mtp", "show_content_system", false};
+    option::OptionBool m_mtp_show_content_user{"mtp", "show_content_user", false};
+    option::OptionBool m_mtp_show_games{"mtp", "show_games", true};
+    option::OptionBool m_mtp_show_install{"mtp", "show_install", true};
+    option::OptionBool m_mtp_show_mounts{"mtp", "show_mounts", false};
+    option::OptionBool m_mtp_show_speedtest{"mtp", "show_speedtest", false};
 
     // Pack options (HATS CFW pack)
     option::OptionString m_pack_url{"pack", "pack_url", "https://api.github.com/repos/sthetix/HATS/releases"};

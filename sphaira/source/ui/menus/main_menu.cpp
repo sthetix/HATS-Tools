@@ -10,6 +10,7 @@
 #include "ui/menus/filebrowser.hpp"
 #include "ui/menus/ghdl.hpp"
 #include "ui/menus/appstore.hpp"
+#include "ui/menus/game_menu.hpp"
 
 #include "app.hpp"
 #include "log.hpp"
@@ -48,6 +49,9 @@ const MiscMenuEntry MISC_MENU_ENTRIES[] = {
     { .name = "Appstore", .title = "Appstore", .func = MiscMenuFuncGenerator<ui::menu::appstore::Menu>, .flag = MiscMenuFlag_Shortcut, .info =
         "Download and update apps.\n\n"
         "Internet connection required." },
+
+    { .name = "Games", .title = "Games", .func = MiscMenuFuncGenerator<ui::menu::game::Menu>, .flag = MiscMenuFlag_Shortcut, .info =
+        "View and manage installed games." },
 
     { .name = "FileBrowser", .title = "FileBrowser", .func = MiscMenuFuncGenerator<ui::menu::filebrowser::Menu>, .flag = MiscMenuFlag_Shortcut, .info =
         "Browse files on your SD Card. "

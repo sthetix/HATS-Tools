@@ -1,22 +1,71 @@
 #include "ui/menus/hats_main_menu.hpp"
 #include "ui/menus/hats_pack_menu.hpp"
+#include "ui/menus/hats_game_hub_menu.hpp"
+#include "ui/menus/hats_network_menu.hpp"
+#include "ui/menus/hats_settings_menu.hpp"
 #include "ui/menus/firmware_menu.hpp"
 #include "ui/menus/uninstaller_menu.hpp"
 #include "ui/menus/cheats_menu.hpp"
 #include "ui/menus/filebrowser.hpp"
+#include "ui/menus/appstore.hpp"
 
 #include "ui/nvg_util.hpp"
 #include "ui/option_box.hpp"
 
 #include "app.hpp"
 #include "app_version.hpp"
+#include "defines.hpp"
 #include "log.hpp"
 #include "hats_version.hpp"
 #include "i18n.hpp"
 
 #include "stb_image.h"
 
+#include <algorithm>
+
 namespace sphaira::ui::menu::hats {
+namespace {
+
+constexpr s64 WIPE_COUNTDOWN_MIN_SECONDS = 5;
+constexpr s64 WIPE_COUNTDOWN_MAX_SECONDS = 60;
+
+auto GetElapsedSeconds(u64 start_tick) -> s64 {
+    if (!start_tick) {
+        return 0;
+    }
+
+    const auto elapsed_ns = armTicksToNs(armGetSystemTick() - start_tick);
+    return static_cast<s64>(elapsed_ns / 1'000'000'000ULL);
+}
+
+auto RequestForcedReboot() -> Result {
+    Result rc = spsmInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = spsmShutdown(true);
+        spsmExit();
+        if (R_SUCCEEDED(rc)) {
+            return rc;
+        }
+    }
+
+    rc = appletRequestToReboot();
+    if (R_SUCCEEDED(rc)) {
+        return rc;
+    }
+
+    rc = bpcInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = bpcRebootSystem();
+        bpcExit();
+        if (R_SUCCEEDED(rc)) {
+            return rc;
+        }
+    }
+
+    return rc;
+}
+
+} // namespace
 
 // Embedded icon data
 constexpr const u8 ICON_HATS_PACK[]{
@@ -43,6 +92,22 @@ constexpr const u8 ICON_ADVANCED[]{
     #embed <icons/advanced-options.png>
 };
 
+constexpr const u8 ICON_APP_SHOP[]{
+    #embed <icons/app-shop.png>
+};
+
+constexpr const u8 ICON_GAME_HUB[]{
+    #embed <icons/game-hub.png>
+};
+
+constexpr const u8 ICON_WIPE_SYSMMC[]{
+    #embed <icons/wipe-sysmmc.png>
+};
+
+constexpr const u8 ICON_NETWORK[]{
+    #embed <icons/network.png>
+};
+
 MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None} {
     // Initialize menu items with icon paths
     m_items = {
@@ -51,6 +116,10 @@ MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None}
         {"Cheats", "Download cheat codes from nx-cheats-db", "icons/cheats.png"},
         {"Uninstall Components", "Remove installed components (except Atmosphere/Hekate)", "icons/uninstall-components.png"},
         {"File Browser", "Browse and manage files on SD Card", "icons/file-browser.png"},
+        {"Homebrew App Shop", "Download and update homebrew apps", "icons/app-shop.png"},
+        {"Game Hub", "Manage installed games and game packages", "icons/game-hub.png"},
+        {"Wipe SYSMMC (OFW/Stock)", "Reset SYSMMC (OFW/Stock) to factory default", "icons/wipe-sysmmc.png"},
+        {"Network Tools", "Network, USB, and online tools", "icons/network.png"},
         {"Advanced Options", "Configure application settings including logging", "icons/advanced-options.png"}
     };
 
@@ -71,13 +140,11 @@ MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None}
         std::make_pair(Button::START, Action{App::Exit})
     );
 
-    // Set up single row of icons (6 items in 1 row), centered horizontally and vertically
-    // Calculate total width: 6 icons * 174px + 5 gaps * 20px = 1144px
-    // Screen width: 1280px, so left margin: (1280 - 1144) / 2 = 68px
-    // Screen height: 720px, icon height: 174px, so top margin: (720 - 174) / 2 = 273px
+    // Set up two rows of icons, centered horizontally.
+    // 5 icons * 174px + 4 gaps * 20px = 950px, left margin: 165px.
     const Vec2 pad{20, 20};  // Padding between cells
-    const Vec4 v{68, 300.f, 174, 174};  // Centered both horizontally and vertically
-    m_list = std::make_unique<List>(6, 6, m_pos, v, pad);
+    const Vec4 v{165, 225.f, 174, 174};
+    m_list = std::make_unique<List>(5, 10, m_pos, v, pad);
     m_list->SetLayout(List::Layout::GRID);
 }
 
@@ -95,6 +162,35 @@ MainMenu::~MainMenu() {
 }
 
 void MainMenu::Update(Controller* controller, TouchInfo* touch) {
+    if (m_wipe_countdown_active) {
+        if (controller->GotDown(Button::B)) {
+            CancelWipeCountdown();
+            return;
+        }
+
+        if (controller->GotDown(Button::A)) {
+            RunWipeSysmmc();
+            return;
+        }
+
+        if (controller->GotDown(Button::LEFT)) {
+            m_wipe_countdown_seconds = std::max(WIPE_COUNTDOWN_MIN_SECONDS, m_wipe_countdown_seconds - 5);
+            m_wipe_countdown_start_tick = armGetSystemTick();
+            return;
+        }
+
+        if (controller->GotDown(Button::RIGHT)) {
+            m_wipe_countdown_seconds = std::min(WIPE_COUNTDOWN_MAX_SECONDS, m_wipe_countdown_seconds + 5);
+            m_wipe_countdown_start_tick = armGetSystemTick();
+            return;
+        }
+
+        if (GetWipeCountdownSecondsRemaining() <= 0) {
+            RunWipeSysmmc();
+        }
+        return;
+    }
+
     MenuBase::Update(controller, touch);
 
     m_list->OnUpdate(controller, touch, m_index, m_items.size(), [this](bool touch, auto i) {
@@ -148,6 +244,10 @@ void MainMenu::Draw(NVGcontext* vg, Theme* theme) {
             gfx::drawAppLable(vg, theme, m_scroll_name, x, y, w, item.label.c_str());
         }
     });
+
+    if (m_wipe_countdown_active) {
+        DrawWipeCountdown(vg, theme);
+    }
 }
 
 void MainMenu::OnFocusGained() {
@@ -180,10 +280,124 @@ void MainMenu::OnSelect() {
         case 4: // File Browser
             App::Push<ui::menu::filebrowser::Menu>(MenuFlag_None);
             break;
-        case 5: // Advanced Options
-            App::DisplayAdvancedOptions();
+        case 5: // Homebrew App Shop
+            App::Push<ui::menu::appstore::Menu>(MenuFlag_None);
+            break;
+        case 6: // Game Hub
+            App::Push<GameHubMenu>();
+            break;
+        case 8: // Network Tools
+            App::Push<NetworkMenu>();
+            break;
+        case 7: // Wipe SYSMMC
+            StartWipeSysmmcFlow();
+            break;
+        case 9: // Advanced Options
+            App::Push<SettingsMenu>();
             break;
     }
+}
+
+void MainMenu::StartWipeSysmmcFlow() {
+    if (!hosversionAtLeast(3, 0, 0)) {
+        App::Push<OptionBox>(
+            "Wipe SYSMMC (OFW/Stock) requires HOS 3.0.0 or newer."_i18n,
+            "OK"_i18n
+        );
+        return;
+    }
+
+    App::Push<OptionBox>(
+        "This will wipe SYSMMC (OFW/Stock) and all data.\nData cannot be recovered.\nConsole will force restart."_i18n,
+        "Cancel"_i18n,
+        "Continue"_i18n,
+        0,
+        [this](auto op_index) {
+            if (op_index && *op_index == 1) {
+                StartWipeCountdown();
+            }
+        }
+    );
+}
+
+void MainMenu::StartWipeCountdown() {
+    m_wipe_countdown_active = true;
+    m_wipe_countdown_seconds = 10;
+    m_wipe_countdown_start_tick = armGetSystemTick();
+}
+
+void MainMenu::CancelWipeCountdown() {
+    m_wipe_countdown_active = false;
+    m_wipe_countdown_start_tick = 0;
+    App::Notify("Wipe SYSMMC (OFW/Stock) canceled"_i18n);
+}
+
+void MainMenu::RunWipeSysmmc() {
+    if (m_wipe_in_progress) {
+        return;
+    }
+
+    m_wipe_in_progress = true;
+    m_wipe_countdown_active = false;
+
+    Result rc = nsInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = nsResetToFactorySettingsForRefurbishment();
+        nsExit();
+    }
+
+    m_wipe_in_progress = false;
+
+    if (R_FAILED(rc)) {
+        App::PushErrorBox(rc, "Failed to wipe SYSMMC (OFW/Stock)"_i18n);
+        return;
+    }
+
+    App::Notify("SYSMMC (OFW/Stock) wiped. Rebooting..."_i18n);
+    if (R_FAILED(RequestForcedReboot())) {
+        App::Push<OptionBox>(
+            "SYSMMC (OFW/Stock) wipe completed. You must reboot the console now."_i18n,
+            "Reboot"_i18n,
+            [](auto) {
+                RequestForcedReboot();
+            }
+        );
+    }
+}
+
+auto MainMenu::GetWipeCountdownSecondsRemaining() const -> s64 {
+    return std::max<s64>(0, m_wipe_countdown_seconds - GetElapsedSeconds(m_wipe_countdown_start_tick));
+}
+
+void MainMenu::DrawWipeCountdown(NVGcontext* vg, Theme* theme) {
+    const Vec4 box{
+        (SCREEN_WIDTH / 2.f) - 385.f,
+        (SCREEN_HEIGHT / 2.f) - 147.5f,
+        770.f,
+        295.f
+    };
+    const auto center_x = box.x + box.w / 2.f;
+    const auto seconds = GetWipeCountdownSecondsRemaining();
+
+    gfx::dimBackground(vg);
+    gfx::drawRect(vg, box, theme->GetColour(ThemeEntryID_POPUP), 5);
+    gfx::drawText(vg, center_x, box.y + 45.f, 26.f, theme->GetColour(ThemeEntryID_TEXT), "Wipe SYSMMC (OFW/Stock)"_i18n.c_str(), NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+    gfx::drawTextBox(
+        vg,
+        box.x + 55.f,
+        box.y + 105.f,
+        22.f,
+        box.w - 110.f,
+        theme->GetColour(ThemeEntryID_TEXT),
+        "Factory reset will start automatically if left untouched."_i18n.c_str(),
+        NVG_ALIGN_CENTER | NVG_ALIGN_TOP
+    );
+    const auto seconds_text = std::to_string(seconds);
+    gfx::drawText(vg, center_x, box.y + 165.f, 38.f, theme->GetColour(ThemeEntryID_TEXT_SELECTED), seconds_text.c_str(), NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+    gfx::drawRect(vg, box.x, box.y + 220.f - 2.f, box.w, 2.f, theme->GetColour(ThemeEntryID_LINE_SEPARATOR));
+    gfx::drawText(vg, box.x + 75.f, box.y + 245.f, 20.f, theme->GetColour(ThemeEntryID_TEXT_INFO), "B Cancel"_i18n.c_str(), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+    gfx::drawText(vg, center_x, box.y + 245.f, 20.f, theme->GetColour(ThemeEntryID_TEXT_INFO), "Left/Right Adjust"_i18n.c_str(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+    gfx::drawText(vg, box.x + box.w - 75.f, box.y + 245.f, 20.f, theme->GetColour(ThemeEntryID_TEXT_INFO), "A Wipe Now"_i18n.c_str(), NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 }
 
 void MainMenu::RefreshVersionInfo() {
@@ -224,7 +438,11 @@ void MainMenu::LoadIcons() {
     success &= load_icon(ICON_CHEATS, sizeof(ICON_CHEATS), m_items[2].icon_texture);
     success &= load_icon(ICON_UNINSTALL, sizeof(ICON_UNINSTALL), m_items[3].icon_texture);
     success &= load_icon(ICON_FILE_BROWSER, sizeof(ICON_FILE_BROWSER), m_items[4].icon_texture);
-    success &= load_icon(ICON_ADVANCED, sizeof(ICON_ADVANCED), m_items[5].icon_texture);
+    success &= load_icon(ICON_APP_SHOP, sizeof(ICON_APP_SHOP), m_items[5].icon_texture);
+    success &= load_icon(ICON_GAME_HUB, sizeof(ICON_GAME_HUB), m_items[6].icon_texture);
+    success &= load_icon(ICON_WIPE_SYSMMC, sizeof(ICON_WIPE_SYSMMC), m_items[7].icon_texture);
+    success &= load_icon(ICON_NETWORK, sizeof(ICON_NETWORK), m_items[8].icon_texture);
+    success &= load_icon(ICON_ADVANCED, sizeof(ICON_ADVANCED), m_items[9].icon_texture);
 
     if (success) {
         log_write("Successfully loaded all menu icons\n");

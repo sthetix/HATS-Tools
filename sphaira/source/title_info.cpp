@@ -110,6 +110,79 @@ auto& GetNcmEntry(u8 storage_id) {
     return *it;
 }
 
+auto GetBaseApplicationTitleId(u64 title_id) -> u64 {
+    constexpr u64 update_title_id_suffix = 0x800;
+    constexpr u64 title_id_content_suffix_mask = 0xFFF;
+
+    if ((title_id & title_id_content_suffix_mask) == update_title_id_suffix) {
+        return title_id & ~title_id_content_suffix_mask;
+    }
+
+    return title_id;
+}
+
+bool CopyValidLanguageEntry(u64 source_title_id, const NacpLanguageEntry& entry, NacpLanguageEntry& out) {
+    constexpr size_t name_size = sizeof(entry.name);
+    const auto name_len = strnlen(entry.name, name_size);
+    if (name_len == 0 || name_len == name_size) {
+        return false;
+    }
+
+    bool has_visible_char = false;
+    size_t cur_pos = 0;
+    auto ptr = reinterpret_cast<const u8*>(entry.name);
+    while (cur_pos < name_len) {
+        u32 code = 0;
+        const auto units = decode_utf8(&code, ptr);
+        if (units <= 0 || cur_pos + static_cast<size_t>(units) > name_len) {
+            log_write("[TITLE] invalid UTF-8 for %016lx at offset %zu\n", source_title_id, cur_pos);
+            return false;
+        }
+
+        if (code < 0x20 && code != '\t') {
+            log_write("[TITLE] invalid control character for %016lx at offset %zu\n", source_title_id, cur_pos);
+            return false;
+        }
+
+        if (code > 0x20 && code != 0x7F) {
+            has_visible_char = true;
+        }
+
+        ptr += units;
+        cur_pos += static_cast<size_t>(units);
+    }
+
+    if (!has_visible_char) {
+        return false;
+    }
+
+    out = entry;
+    out.name[name_size - 1] = '\0';
+    out.author[sizeof(out.author) - 1] = '\0';
+    return true;
+}
+
+bool ExtractValidLanguageEntry(u64 source_title_id, NacpStruct& nacp, NacpLanguageEntry& out) {
+    NacpLanguageEntry* lang = nullptr;
+    if (R_SUCCEEDED(nacpGetLanguageEntry(&nacp, &lang)) && lang) {
+        if (CopyValidLanguageEntry(source_title_id, *lang, out)) {
+            return true;
+        }
+        log_write("[TITLE] selected language entry invalid for %016lx, trying fallbacks\n", source_title_id);
+    }
+
+    for (const auto& entry : nacp.lang) {
+        if (&entry == lang) {
+            continue;
+        }
+        if (CopyValidLanguageEntry(source_title_id, entry, out)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // also sets the status to error.
 void FakeNacpEntry(ThreadResultData* e) {
     e->status = NacpLoadStatus::Error;
@@ -120,14 +193,15 @@ void FakeNacpEntry(ThreadResultData* e) {
 
 Result LoadControlManual(u64 id, NacpStruct& nacp, ThreadResultData* data) {
     TimeStamp ts;
+    const auto base_id = GetBaseApplicationTitleId(id);
 
     MetaEntries entries;
-    R_TRY(GetMetaEntries(id, entries, ContentFlag_Nacp));
+    R_TRY(GetMetaEntries(base_id, entries, ContentFlag_Application));
     R_UNLESS(!entries.empty(), Result_GameEmptyMetaEntries);
 
     u64 program_id;
     fs::FsPath path;
-    R_TRY(GetControlPathFromStatus(entries.back(), &program_id, &path));
+    R_TRY(GetControlPathFromStatus(entries.front(), &program_id, &path));
     R_TRY(nca::ParseControl(path, program_id, &nacp, sizeof(nacp), &data->icon));
 
     log_write("\t\t[manual control] time taken: %.2fs %zums\n", ts.GetSecondsD(), ts.GetMs());
@@ -259,7 +333,9 @@ auto ThreadData::Get(u64 app_id, bool* cached) -> ThreadResultData* {
     auto result = std::make_unique<ThreadResultData>(app_id);
     result->status = NacpLoadStatus::Error;
 
-    if (auto data = nxtcGetApplicationMetadataEntryById(app_id)) {
+    const auto base_app_id = GetBaseApplicationTitleId(app_id);
+
+    if (auto data = nxtcGetApplicationMetadataEntryById(base_app_id)) {
         log_write("[NXTC] loaded from cache time taken: %.2fs %zums %zuns\n", ts.GetSecondsD(), ts.GetMs(), ts.GetNs());
         ON_SCOPE_EXIT(nxtcFreeApplicationMetadata(&data));
 
@@ -267,16 +343,23 @@ auto ThreadData::Get(u64 app_id, bool* cached) -> ThreadResultData* {
             *cached = true;
         }
 
-        result->status = NacpLoadStatus::Loaded;
-        std::strcpy(result->lang.name, data->name);
-        std::strcpy(result->lang.author, data->publisher);
-        result->icon.resize(data->icon_size);
-        std::memcpy(result->icon.data(), data->icon_data, result->icon.size());
+        NacpLanguageEntry cached_lang{};
+        std::strncpy(cached_lang.name, data->name, sizeof(cached_lang.name) - 1);
+        std::strncpy(cached_lang.author, data->publisher, sizeof(cached_lang.author) - 1);
+        if (CopyValidLanguageEntry(base_app_id, cached_lang, result->lang)) {
+            result->status = NacpLoadStatus::Loaded;
+            result->icon.resize(data->icon_size);
+            std::memcpy(result->icon.data(), data->icon_data, result->icon.size());
+        } else {
+            log_write("[NXTC] cached title name invalid for %016lx, reloading control data\n", base_app_id);
+        }
     } else {
         if (cached) {
             *cached = false;
         }
+    }
 
+    if (result->status != NacpLoadStatus::Loaded) {
         bool has_nacp = false;
         bool manual_load = false;
         u64 actual_size{};
@@ -284,19 +367,19 @@ auto ThreadData::Get(u64 app_id, bool* cached) -> ThreadResultData* {
 
         if (!ns::IsNsControlFetchSlow()) {
             TimeStamp ts;
-            if (R_SUCCEEDED(nsGetApplicationControlData(NsApplicationControlSource_CacheOnly, app_id, control.get(), sizeof(NsApplicationControlData), &actual_size))) {
+            if (R_SUCCEEDED(nsGetApplicationControlData(NsApplicationControlSource_CacheOnly, base_app_id, control.get(), sizeof(NsApplicationControlData), &actual_size))) {
                 has_nacp = true;
                 log_write("\t\t[ns control cache] time taken: %.2fs %zums\n", ts.GetSecondsD(), ts.GetMs());
             }
         }
 
         if (!has_nacp) {
-            has_nacp = manual_load = R_SUCCEEDED(LoadControlManual(app_id, control->nacp, result.get()));
+            has_nacp = manual_load = R_SUCCEEDED(LoadControlManual(base_app_id, control->nacp, result.get()));
         }
 
         if (!has_nacp) {
             TimeStamp ts;
-            if (R_SUCCEEDED(nsGetApplicationControlData(NsApplicationControlSource_Storage, app_id, control.get(), sizeof(NsApplicationControlData), &actual_size))) {
+            if (R_SUCCEEDED(nsGetApplicationControlData(NsApplicationControlSource_Storage, base_app_id, control.get(), sizeof(NsApplicationControlData), &actual_size))) {
                 has_nacp = true;
                 log_write("\t\t[ns control storage] time taken: %.2fs %zums\n", ts.GetSecondsD(), ts.GetMs());
             }
@@ -306,23 +389,22 @@ auto ThreadData::Get(u64 app_id, bool* cached) -> ThreadResultData* {
             FakeNacpEntry(result.get());
         } else {
             bool valid = true;
-            NacpLanguageEntry* lang;
-            if (R_SUCCEEDED(nsGetApplicationDesiredLanguage(&control->nacp, &lang)) && lang) {
-                result->lang = *lang;
-            } else {
+            if (!ExtractValidLanguageEntry(base_app_id, control->nacp, result->lang)) {
                 FakeNacpEntry(result.get());
                 valid = false;
             }
 
             if (!manual_load) {
-                const auto jpeg_size = actual_size - sizeof(NacpStruct);
-                result->icon.resize(jpeg_size);
-                std::memcpy(result->icon.data(), control->icon, result->icon.size());
+                const auto jpeg_size = actual_size > sizeof(NacpStruct) ? actual_size - sizeof(NacpStruct) : 0;
+                if (jpeg_size) {
+                    result->icon.resize(jpeg_size);
+                    std::memcpy(result->icon.data(), control->icon, result->icon.size());
+                }
             }
 
             // add new entry to cache, if valid.
             if (valid) {
-                nxtcAddEntry(app_id, &control->nacp, result->icon.size(), result->icon.data(), true);
+                nxtcAddEntry(base_app_id, &control->nacp, result->icon.size(), result->icon.data(), true);
             }
 
             result->status = NacpLoadStatus::Loaded;
@@ -512,7 +594,23 @@ Result GetControlPathFromStatus(const NsApplicationContentMetaStatus& status, u6
     auto& cs = GetNcmCs(ee.storageID);
 
     NcmContentMetaKey key;
-    R_TRY(ncmContentMetaDatabaseGetLatestContentMetaKey(&db, &key, ee.application_id));
+    const auto app_id = ncm::GetAppId(ee.meta_type, ee.application_id);
+
+    auto id_min = ee.application_id;
+    auto id_max = ee.application_id;
+    // GameCard/on-memory DBs can have narrow ID filtering quirks; match the
+    // installed-games export path when resolving a concrete status key.
+    if (ee.storageID == NcmStorageId_None || ee.storageID == NcmStorageId_GameCard) {
+        id_min -= 1;
+        id_max += 1;
+    }
+
+    s32 meta_total;
+    s32 meta_entries_written;
+    R_TRY(ncmContentMetaDatabaseList(&db, &meta_total, &meta_entries_written, &key, 1,
+        static_cast<NcmContentMetaType>(ee.meta_type), app_id, id_min, id_max, NcmContentInstallType_Full));
+    R_UNLESS(meta_total == 1, Result_GameMultipleKeysFound);
+    R_UNLESS(meta_entries_written == 1, Result_GameMultipleKeysFound);
 
     NcmContentId content_id;
     R_TRY(ncmContentMetaDatabaseGetContentIdByType(&db, &content_id, &key, NcmContentType_Control));

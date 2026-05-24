@@ -5,6 +5,7 @@
 #include "ui/progress_box.hpp"
 #include "ui/error_box.hpp"
 #include "ui/scrollable_text.hpp"
+#include "ui/menus/file_picker.hpp"
 
 #include "app.hpp"
 #include "log.hpp"
@@ -13,11 +14,13 @@
 #include "i18n.hpp"
 #include "yyjson_helper.hpp"
 #include "swkbd.hpp"
+#include "title_info.hpp"
 #include "utils/devoptab.hpp"
 #include "utils/utils.hpp"
 #include "yati/nx/ns.hpp"
 #include "yati/nx/es.hpp"
 #include "yati/nx/ncm.hpp"
+#include "yati/nx/nca.hpp"
 
 #include <yyjson.h>
 #include <cctype>
@@ -90,6 +93,17 @@ auto FormatTitleId(u64 title_id) -> std::string {
 // Format title ID as lowercase for file paths
 auto FormatTitleIdLower(u64 title_id) -> std::string {
     return std::format("{:016x}", title_id);
+}
+
+auto GetBaseApplicationTitleId(u64 title_id) -> u64 {
+    constexpr u64 update_title_id_suffix = 0x800;
+    constexpr u64 title_id_content_suffix_mask = 0xFFF;
+
+    if ((title_id & title_id_content_suffix_mask) == update_title_id_suffix) {
+        return title_id & ~title_id_content_suffix_mask;
+    }
+
+    return title_id;
 }
 
 // Convert bytes to hex string (uppercase)
@@ -697,39 +711,146 @@ auto GetTitleVersion(u64 title_id) -> u32 {
 
 // Get title name using nsGetApplicationControlData
 auto GetTitleName(u64 title_id) -> std::string {
-    NsApplicationControlData control_data;
-    u64 actual_size = 0;
+    const auto base_title_id = GetBaseApplicationTitleId(title_id);
 
-    Result rc = nsGetApplicationControlData(
-        NsApplicationControlSource_Storage,
-        title_id,
-        &control_data,
-        sizeof(control_data),
-        &actual_size
-    );
+    // Get language entry for the name
+    const auto copy_valid_name = [](u64 source_title_id, const NacpLanguageEntry& entry) -> std::string {
+        constexpr size_t name_size = sizeof(entry.name);
+        const auto name_len = strnlen(entry.name, name_size);
+        if (name_len == 0 || name_len == name_size) {
+            return "";
+        }
 
-    if (R_FAILED(rc)) {
-        // Try cache only as fallback
-        rc = nsGetApplicationControlData(
-            NsApplicationControlSource_CacheOnly,
-            title_id,
+        bool has_visible_char = false;
+        for (size_t i = 0; i < name_len; i++) {
+            const auto c = static_cast<unsigned char>(entry.name[i]);
+            if (c < 0x20 && c != '\t') {
+                log_write("[Cheats] GetTitleName: invalid control character for %016lx at offset %zu\n", source_title_id, i);
+                return "";
+            }
+            if (!std::isspace(c)) {
+                has_visible_char = true;
+            }
+        }
+
+        if (!has_visible_char) {
+            return "";
+        }
+
+        return std::string(entry.name, name_len);
+    };
+
+    const auto extract_nacp_name = [&](u64 source_title_id, NacpStruct& nacp) -> std::string {
+        NacpLanguageEntry* lang_entry = nullptr;
+        const auto rc = nacpGetLanguageEntry(&nacp, &lang_entry);
+        if (R_SUCCEEDED(rc) && lang_entry) {
+            if (auto name = copy_valid_name(source_title_id, *lang_entry); !name.empty()) {
+                return name;
+            }
+            log_write("[Cheats] GetTitleName: selected language entry invalid for %016lx, trying fallbacks\n", source_title_id);
+        }
+
+        for (const auto& entry : nacp.lang) {
+            if (&entry == lang_entry) {
+                continue;
+            }
+            if (auto name = copy_valid_name(source_title_id, entry); !name.empty()) {
+                return name;
+            }
+        }
+
+        return "";
+    };
+
+    const auto try_get_base_application_name = [&]() -> std::string {
+        title::MetaEntries entries;
+        if (R_FAILED(title::GetMetaEntries(base_title_id, entries, title::ContentFlag_Application)) || entries.empty()) {
+            return "";
+        }
+
+        u64 program_id = 0;
+        fs::FsPath path;
+        if (R_FAILED(title::GetControlPathFromStatus(entries.front(), &program_id, &path))) {
+            return "";
+        }
+
+        NacpStruct nacp{};
+        std::vector<u8> icon;
+        if (R_FAILED(nca::ParseControl(path, program_id, &nacp, sizeof(nacp), &icon))) {
+            return "";
+        }
+
+        if (auto name = extract_nacp_name(base_title_id, nacp); !name.empty()) {
+            log_write("[Cheats] GetTitleName: loaded base application control name for %016lx\n", base_title_id);
+            return name;
+        }
+
+        log_write("[Cheats] GetTitleName: base application control name invalid for %016lx\n", base_title_id);
+        return "";
+    };
+
+    if (R_SUCCEEDED(title::Init())) {
+        ON_SCOPE_EXIT(title::Exit());
+
+        if (auto name = try_get_base_application_name(); !name.empty()) {
+            return name;
+        }
+
+        if (auto data = title::Get(base_title_id); data && data->status == title::NacpLoadStatus::Loaded) {
+            if (auto name = copy_valid_name(base_title_id, data->lang); !name.empty()) {
+                return name;
+            }
+            log_write("[Cheats] GetTitleName: title cache/manual name invalid for %016lx\n", base_title_id);
+        }
+    } else {
+        log_write("[Cheats] GetTitleName: title::Init failed for %016lx\n", base_title_id);
+    }
+
+    const auto try_get_name = [&](NsApplicationControlSource source, u64 source_title_id) -> std::string {
+        NsApplicationControlData control_data{};
+        u64 actual_size = 0;
+        const auto rc = nsGetApplicationControlData(
+            source,
+            source_title_id,
             &control_data,
             sizeof(control_data),
             &actual_size
         );
+
         if (R_FAILED(rc)) {
             return "";
         }
+
+        if (actual_size != 0 && actual_size < sizeof(control_data.nacp)) {
+            log_write("[Cheats] GetTitleName: control data too small for %016lx: %llu bytes\n",
+                      source_title_id, static_cast<unsigned long long>(actual_size));
+            return "";
+        }
+
+        return extract_nacp_name(source_title_id, control_data.nacp);
+    };
+
+    if (auto name = try_get_name(NsApplicationControlSource_CacheOnly, base_title_id); !name.empty()) {
+        return name;
     }
 
-    // Get language entry for the name
-    NacpLanguageEntry* lang_entry = nullptr;
-    rc = nacpGetLanguageEntry(&control_data.nacp, &lang_entry);
-    if (R_FAILED(rc) || !lang_entry || !lang_entry->name) {
-        return "";
+    // Storage can include update-provided control data, so only use it after base cache misses.
+    if (auto name = try_get_name(NsApplicationControlSource_Storage, base_title_id); !name.empty()) {
+        return name;
     }
 
-    return lang_entry->name;
+    if (title_id != base_title_id) {
+        log_write("[Cheats] GetTitleName: base lookup failed for %016lx, trying original title %016lx\n",
+                  base_title_id, title_id);
+        if (auto name = try_get_name(NsApplicationControlSource_CacheOnly, title_id); !name.empty()) {
+            return name;
+        }
+        if (auto name = try_get_name(NsApplicationControlSource_Storage, title_id); !name.empty()) {
+            return name;
+        }
+    }
+
+    return "";
 }
 
 // Clean cheat content by removing non-cheat entries (credits, website headers)
@@ -1263,6 +1384,7 @@ auto EnumerateInstalledGames() -> std::vector<GameCheatInfo> {
     ON_SCOPE_EXIT(ns::Exit());
 
     std::vector<NsApplicationRecord> record_list(ENTRY_CHUNK_COUNT);
+    std::unordered_set<u64> seen_title_ids;
     s32 offset = 0;
 
     while (true) {
@@ -1282,13 +1404,17 @@ auto EnumerateInstalledGames() -> std::vector<GameCheatInfo> {
             if (record.application_id == 0) {
                 continue;
             }
+            const auto base_title_id = GetBaseApplicationTitleId(record.application_id);
+            if (!seen_title_ids.insert(base_title_id).second) {
+                continue;
+            }
 
             GameCheatInfo info;
-            info.title_id = record.application_id;
-            info.version = GetTitleVersion(record.application_id);
-            info.name = GetTitleName(record.application_id);
+            info.title_id = base_title_id;
+            info.version = GetTitleVersion(base_title_id);
+            info.name = GetTitleName(base_title_id);
             if (info.name.empty()) {
-                info.name = std::format("Game {:016X}", record.application_id);
+                info.name = std::format("Game {:016X}", base_title_id);
             }
             games.push_back(std::move(info));
         }
@@ -1767,6 +1893,47 @@ auto SaveCheatslipsToken(const std::string& token) -> void {
 auto GetCheatsDirPath(u64 title_id) -> std::string {
     const auto title_id_str = FormatTitleIdLower(title_id);
     return std::string(ATMOSPHERE_CONTENTS_PATH) + "/" + title_id_str + "/" + CHEATS_SUBDIR;
+}
+
+auto GetFileStem(const std::string& path) -> std::string {
+    const auto slash = path.find_last_of("/\\");
+    const auto filename = slash == std::string::npos ? path : path.substr(slash + 1);
+    const auto dot = filename.find_last_of('.');
+    return dot == std::string::npos ? filename : filename.substr(0, dot);
+}
+
+auto GetManualCheatImportPath(u64 title_id, const std::string& build_id) -> fs::FsPath {
+    fs::FsPath file_path;
+    const auto cheats_dir = GetCheatsDirPath(title_id);
+    std::snprintf(file_path, sizeof(file_path), "%s/%s.txt", cheats_dir.c_str(), build_id.c_str());
+    return file_path;
+}
+
+auto ImportManualCheatFile(u64 title_id, const fs::FsPath& source_path) -> Result {
+    fs::FsNativeSd fs;
+
+    const auto build_id = NormalizeBuildId(GetFileStem(source_path.s));
+    if (!IsValidBuildId(build_id)) {
+        log_write("[Cheats] Manual import rejected invalid Build ID filename: %s\n", source_path.s);
+        return 1;
+    }
+
+    std::vector<u8> data;
+    R_TRY(fs.read_entire_file(source_path, data));
+    if (data.empty()) {
+        log_write("[Cheats] Manual import rejected empty file: %s\n", source_path.s);
+        return 1;
+    }
+
+    const auto cheats_dir = GetCheatsDirPath(title_id);
+    R_TRY(fs.CreateDirectoryRecursively(cheats_dir.c_str()));
+
+    const auto dest_path = GetManualCheatImportPath(title_id, build_id);
+    const auto content = std::span<const u8>(data.data(), data.size());
+    R_TRY(fs.write_entire_file(dest_path, content));
+
+    log_write("[Cheats] Imported manual cheat %s to %s\n", source_path.s, dest_path.s);
+    return 0;
 }
 
 // Get list of existing cheat files for a title
@@ -2310,6 +2477,7 @@ CheatsMenu::CheatsMenu() : MenuBase{"Cheats", MenuFlag_None} {
     // Main cheat management options
     m_items = {
         {"Download Cheats", "from nx-cheats-db (GitHub)"},
+        {"Upload Cheats", "Install a local Build ID .txt file"},
         {"View Cheats", "View installed cheat codes"},
         {"Delete All Cheats", "Delete all existing cheat codes"},
         {"Delete Orphaned", "Delete cheats for uninstalled games"},
@@ -2393,10 +2561,25 @@ void CheatsMenu::OnSelect() {
         case 0: // Download Cheats from nx-cheats-db (default)
             App::Push<CheatGameSelectMenu>(CheatSource::NxDb);
             break;
-        case 1: // View Cheats
+        case 1: // Upload local cheat file
+            App::Push<filebrowser::picker::Menu>(
+                [](const fs::FsPath& path) -> bool {
+                    const auto build_id = NormalizeBuildId(GetFileStem(path.s));
+                    if (!IsValidBuildId(build_id)) {
+                        App::Notify("Cheat filename must be a 16-digit Build ID");
+                        return false;
+                    }
+
+                    App::Push<CheatGameSelectMenu>(CheatSource::ManualFile, path);
+                    return true;
+                },
+                std::vector<std::string>{"txt"}
+            );
+            break;
+        case 2: // View Cheats
             App::Push<CheatViewMenu>();
             break;
-        case 2: // Delete All Cheats
+        case 3: // Delete All Cheats
             App::Push<OptionBox>(
                 "Delete all existing cheat codes?\nThis will remove ALL cheat files\nfor ALL installed games.",
                 "Cancel"_i18n, "Delete", 1,
@@ -2419,7 +2602,7 @@ void CheatsMenu::OnSelect() {
                 }
             );
             break;
-        case 3: // Delete Orphaned Cheats
+        case 4: // Delete Orphaned Cheats
             App::Push<ProgressBox>(0, "Scanning..."_i18n, "Cheats"_i18n,
                 [](auto pbox) -> Result {
                     return DeleteOrphanedCheats();
@@ -2435,7 +2618,7 @@ void CheatsMenu::OnSelect() {
                 }
             );
             break;
-        case 4: // Clear Cheats Cache
+        case 5: // Clear Cheats Cache
             App::Push<OptionBox>(
                 "Clear cached cheats database?",
                 "Cancel"_i18n, "Clear"_i18n, 0,
@@ -2625,6 +2808,7 @@ void CheatViewMenu::ScanGamesWithCheats() {
     }
 
     std::vector<NsApplicationRecord> record_list(ENTRY_CHUNK_COUNT);
+    std::unordered_set<u64> seen_title_ids;
     s32 offset = 0;
 
     while (true) {
@@ -2644,20 +2828,24 @@ void CheatViewMenu::ScanGamesWithCheats() {
         for (s32 i = 0; i < record_count; i++) {
             const auto& record = record_list[i];
             if (record.application_id == 0) continue;
+            const auto base_title_id = GetBaseApplicationTitleId(record.application_id);
+            if (!seen_title_ids.insert(base_title_id).second) {
+                continue;
+            }
 
             // Check if this game has any cheats
-            auto existing = GetExistingCheats(record.application_id);
+            auto existing = GetExistingCheats(base_title_id);
             if (!existing.empty()) {
                 // Get game name
-                std::string name = GetTitleName(record.application_id);
+                std::string name = GetTitleName(base_title_id);
                 if (name.empty()) {
                     char placeholder[64];
-                    std::snprintf(placeholder, sizeof(placeholder), "Game %016llX", (unsigned long long)record.application_id);
+                    std::snprintf(placeholder, sizeof(placeholder), "Game %016llX", (unsigned long long)base_title_id);
                     name = placeholder;
                 }
 
                 GameCheatInfo info;
-                info.title_id = record.application_id;
+                info.title_id = base_title_id;
                 info.name = name;
                 info.build_id = "";
                 info.version = 0;
@@ -3318,6 +3506,11 @@ CheatGameSelectMenu::CheatGameSelectMenu(CheatSource source)
     m_list->SetLayout(List::Layout::GRID);
 }
 
+CheatGameSelectMenu::CheatGameSelectMenu(CheatSource source, const fs::FsPath& manual_cheat_path)
+    : CheatGameSelectMenu(source) {
+    m_manual_cheat_path = manual_cheat_path;
+}
+
 CheatGameSelectMenu::~CheatGameSelectMenu() {
 }
 
@@ -3420,6 +3613,45 @@ void CheatGameSelectMenu::OnSelect() {
 
     const auto& game = m_games[m_index];
 
+    if (m_source == CheatSource::ManualFile) {
+        const auto build_id = NormalizeBuildId(GetFileStem(m_manual_cheat_path.s));
+        if (!IsValidBuildId(build_id)) {
+            App::Notify("Cheat filename must be a 16-digit Build ID");
+            return;
+        }
+
+        fs::FsNativeSd fs;
+        const auto dest_path = GetManualCheatImportPath(game.title_id, build_id);
+        const auto action = [game, path = m_manual_cheat_path](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            const auto rc = ImportManualCheatFile(game.title_id, path);
+            if (R_SUCCEEDED(rc)) {
+                App::Notify("Cheat file uploaded");
+            } else {
+                App::Push<ErrorBox>(rc, "Failed to upload cheat file");
+            }
+        };
+
+        if (fs.FileExists(dest_path)) {
+            App::Push<OptionBox>(
+                "Cheats existed, reupload?",
+                "Cancel"_i18n, "Upload", 1,
+                action
+            );
+            return;
+        }
+
+        App::Push<OptionBox>(
+            "Upload cheats to this game?",
+            "Cancel"_i18n, "Upload", 1,
+            action
+        );
+        return;
+    }
+
     // For CheatSlips, check if we have a token
     if (m_source == CheatSource::Cheatslips) {
         auto token = GetCheatslipsToken();
@@ -3470,6 +3702,7 @@ void CheatGameSelectMenu::ScanGames() {
 
     // Use chunked approach like original sphaira (game_menu.cpp ScanHomebrew)
     std::vector<NsApplicationRecord> record_list(ENTRY_CHUNK_COUNT);
+    std::unordered_set<u64> seen_title_ids;
     s32 offset = 0;
 
     while (true) {
@@ -3492,23 +3725,27 @@ void CheatGameSelectMenu::ScanGames() {
         for (s32 i = 0; i < record_count; i++) {
             const auto& record = record_list[i];
             if (record.application_id == 0) continue;
+            const auto base_title_id = GetBaseApplicationTitleId(record.application_id);
+            if (!seen_title_ids.insert(base_title_id).second) {
+                continue;
+            }
 
-            log_write("[Cheats] Processing %016lX\n", record.application_id);
+            log_write("[Cheats] Processing %016lX\n", base_title_id);
 
             // Get version
-            u32 version = GetTitleVersion(record.application_id);
+            u32 version = GetTitleVersion(base_title_id);
 
             // Get title name using nsGetApplicationControlData
-            std::string name = GetTitleName(record.application_id);
+            std::string name = GetTitleName(base_title_id);
             if (name.empty()) {
                 // Use placeholder name if we couldn't get it
                 char placeholder[64];
-                std::snprintf(placeholder, sizeof(placeholder), "Game %016llX", (unsigned long long)record.application_id);
+                std::snprintf(placeholder, sizeof(placeholder), "Game %016llX", (unsigned long long)base_title_id);
                 name = placeholder;
             }
 
             GameCheatInfo info;
-            info.title_id = record.application_id;
+            info.title_id = base_title_id;
             info.name = name;
             info.version = version;
             if (const auto it = cached_entries.find(info.title_id); it != cached_entries.end() &&

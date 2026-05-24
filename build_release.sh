@@ -45,8 +45,6 @@ cp build/Release/hats-tools.nro out/switch/hats-tools/hats-tools.nro
 cp payload/output/hats-installer.bin out/switch/hats-tools/hats-installer.bin
 cp assets/romfs/hekate_ipl_mod.ini out/config/hats-tools/hekate_ipl_mod.ini
 
-pushd out
-zip -r9 hats-tools-$VERSION.zip switch config
-popd
+(cd out && zip -r9 hats-tools-$VERSION.zip switch config) || { echo "=== Package build FAILED ==="; exit 1; }
 
 echo "=== Release built: out/hats-tools-$VERSION.zip ==="

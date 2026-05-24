@@ -22,6 +22,14 @@
 #include "web.hpp"
 #include "swkbd.hpp"
 
+#ifdef ENABLE_FTPSRV
+#include "ftpsrv_helper.hpp"
+#endif
+
+#ifdef ENABLE_LIBHAZE
+#include "haze_helper.hpp"
+#endif
+
 #include "utils/profile.hpp"
 #include "utils/thread.hpp"
 #include "utils/devoptab.hpp"
@@ -691,6 +699,14 @@ auto App::GetLogEnable() -> bool {
     return g_app->m_log_enabled.Get();
 }
 
+auto App::GetMtpEnable() -> bool {
+    return g_app->m_mtp_enabled.Get();
+}
+
+auto App::GetFtpEnable() -> bool {
+    return g_app->m_ftp_enabled.Get();
+}
+
 auto App::GetSkipBackupWarning() -> bool {
     return g_app->m_skip_backup_warning.Get();
 }
@@ -719,6 +735,21 @@ auto App::GetTextScrollSpeed() -> long {
     return g_app->m_text_scroll_speed.Get();
 }
 
+auto App::GetInstallEnable() -> bool {
+    return true;
+}
+
+void App::ShowEnableInstallPrompt() {
+    App::Push<ui::OptionBox>(
+        "Game installation is enabled in HATS Tools.\nReview install options?"_i18n,
+        "Back"_i18n, "Options"_i18n, 0, [](auto op_index){
+            if (op_index && *op_index) {
+                App::DisplayInstallOptions();
+            }
+        }
+    );
+}
+
 auto App::GetNszCompressLevel() -> long {
     return g_app->m_nsz_compress_level.Get();
 }
@@ -739,6 +770,34 @@ void App::SetLogEnable(bool enable) {
         } else {
             log_file_exit();
         }
+    }
+}
+
+void App::SetMtpEnable(bool enable) {
+    if (App::GetMtpEnable() != enable) {
+        g_app->m_mtp_enabled.Set(enable);
+
+#ifdef ENABLE_LIBHAZE
+        if (enable) {
+            libhaze::Init();
+        } else {
+            libhaze::Exit();
+        }
+#endif
+    }
+}
+
+void App::SetFtpEnable(bool enable) {
+    if (App::GetFtpEnable() != enable) {
+        g_app->m_ftp_enabled.Set(enable);
+
+#ifdef ENABLE_FTPSRV
+        if (enable) {
+            ftpsrv::Init();
+        } else {
+            ftpsrv::Exit();
+        }
+#endif
     }
 }
 
@@ -1358,6 +1417,8 @@ App::App(const char* argv0) {
 
         if (!std::strcmp(Section, INI_SECTION)) {
             if (app->m_log_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_skip_backup_warning.LoadFrom(Key, Value)) {}
             else if (app->m_backup_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_keep_zips.LoadFrom(Key, Value)) {}
@@ -1390,11 +1451,47 @@ App::App(const char* argv0) {
         } else if (!std::strcmp(Section, "accessibility")) {
             if (app->m_text_scroll_speed.LoadFrom(Key, Value)) {}
         } else if (!std::strcmp(Section, "dump")) {
-            if (app->m_nsz_compress_level.LoadFrom(Key, Value)) {}
+            if (app->m_dump_app_folder.LoadFrom(Key, Value)) {}
+            else if (app->m_dump_append_folder_with_xci.LoadFrom(Key, Value)) {}
+            else if (app->m_dump_trim_xci.LoadFrom(Key, Value)) {}
+            else if (app->m_dump_label_trim_xci.LoadFrom(Key, Value)) {}
+            else if (app->m_dump_convert_to_common_ticket.LoadFrom(Key, Value)) {}
+            else if (app->m_nsz_compress_level.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_threads.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_ldm.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_block.LoadFrom(Key, Value)) {}
             else if (app->m_nsz_compress_block_exponent.LoadFrom(Key, Value)) {}
+        } else if (!std::strcmp(Section, "ftp")) {
+            if (app->m_ftp_port.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_anon.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_user.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_pass.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_album.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_ams_contents.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_bis_storage.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_bis_fs.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_content_system.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_content_user.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_content_sd.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_content_sd0.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_custom_system.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_custom_sd.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_games.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_install.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_mounts.LoadFrom(Key, Value)) {}
+            else if (app->m_ftp_show_switch.LoadFrom(Key, Value)) {}
+        } else if (!std::strcmp(Section, "mtp")) {
+            if (app->m_mtp_vid.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_pid.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_allocate_file.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_album.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_content_sd.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_content_system.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_content_user.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_games.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_install.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_mounts.LoadFrom(Key, Value)) {}
+            else if (app->m_mtp_show_speedtest.LoadFrom(Key, Value)) {}
         } else if (!std::strcmp(Section, "installer")) {
             if (app->m_installer_payload.LoadFrom(Key, Value)) {}
             else if (app->m_installer_staging_path.LoadFrom(Key, Value)) {}
@@ -1543,6 +1640,20 @@ App::App(const char* argv0) {
             SCOPED_TIMESTAMP("curl init");
             curl::Init();
         }
+
+        #ifdef ENABLE_LIBHAZE
+        if (App::GetMtpEnable()) {
+            SCOPED_TIMESTAMP("mtp init");
+            libhaze::Init();
+        }
+        #endif
+
+        #ifdef ENABLE_FTPSRV
+        if (App::GetFtpEnable()) {
+            SCOPED_TIMESTAMP("ftp server init");
+            ftpsrv::Init();
+        }
+        #endif
 
         // this has to come after curl init as it inits curl global.
         {
@@ -1870,85 +1981,85 @@ void App::DisplayAdvancedOptions(bool left_side) {
         )
     );
 
-    // HIDDEN: options->Add<ui::SidebarEntryBool>("Replace hbmenu on exit"_i18n, App::GetReplaceHbmenuEnable(), [](bool& enable){
-    //     App::SetReplaceHbmenuEnable(enable);
-    // },  i18n::get("hbmenu_replace_info",
-    //         "When enabled, it replaces /hbmenu.nro with Sphaira, creating a backup of hbmenu to /switch/hbmenu.nro\n\n"
-    //         "Disabling will give you the option to restore hbmenu."));
+    options->Add<ui::SidebarEntryBool>("Replace hbmenu on exit"_i18n, App::GetReplaceHbmenuEnable(), [](bool& enable){
+        App::SetReplaceHbmenuEnable(enable);
+    },  i18n::get("hbmenu_replace_info",
+            "When enabled, it replaces /hbmenu.nro with Sphaira, creating a backup of hbmenu to /switch/hbmenu.nro\n\n"
+            "Disabling will give you the option to restore hbmenu."));
 
-    // HIDDEN: options->Add<ui::SidebarEntryCallback>("Add / modify mounts"_i18n, [](){
-    //     devoptab::DisplayDevoptabSideBar();
-    // },  i18n::get("mount_options_info",
-    //         "Create, modify, delete network mounts (HTTP, FTP, SFTP, SMB, NFS).\n"
-    //         "Mount options only require a URL and Name be set, with other fields being optional, such as port, user, pass etc.\n\n"
-    //         "Any changes made will require restarting Sphaira to take effect."));
+    options->Add<ui::SidebarEntryCallback>("Add / modify mounts"_i18n, [](){
+        devoptab::DisplayDevoptabSideBar();
+    },  i18n::get("mount_options_info",
+            "Create, modify, delete network mounts (HTTP, FTP, SFTP, SMB, NFS).\n"
+            "Mount options only require a URL and Name be set, with other fields being optional, such as port, user, pass etc.\n\n"
+            "Any changes made will require restarting Sphaira to take effect."));
 
-    // HIDDEN: options->Add<ui::SidebarEntryBool>("Boost CPU during transfer"_i18n, App::GetApp()->m_progress_boost_mode,
-    //     i18n::get("transfer_boost_info",
-    //         "Enables boost mode during transfers which can improve transfer speed. "
-    //         "This sets the CPU to 1785mhz and lowers the GPU 76mhz"));
+    options->Add<ui::SidebarEntryBool>("Boost CPU during transfer"_i18n, App::GetApp()->m_progress_boost_mode,
+        i18n::get("transfer_boost_info",
+            "Enables boost mode during transfers which can improve transfer speed. "
+            "This sets the CPU to 1785mhz and lowers the GPU 76mhz"));
 
-    // HIDDEN: options->Add<ui::SidebarEntryArray>("Text scroll speed"_i18n, text_scroll_speed_items, [](s64& index_out){
-    //     App::SetTextScrollSpeed(index_out);
-    // }, App::GetTextScrollSpeed(), "Change how fast the scrolling text updates"_i18n);
+    options->Add<ui::SidebarEntryArray>("Text scroll speed"_i18n, text_scroll_speed_items, [](s64& index_out){
+        App::SetTextScrollSpeed(index_out);
+    }, App::GetTextScrollSpeed(), "Change how fast the scrolling text updates"_i18n);
 
-    // HIDDEN: options->Add<ui::SidebarEntryArray>("Set center menu"_i18n, menu_items, [menu_names](s64& index_out){
-    //     const auto e = menu_names[index_out];
-    //     if (g_app->m_center_menu.Get() != e) {
-    //         // swap menus around.
-    //         if (g_app->m_left_menu.Get() == e) {
-    //             g_app->m_left_menu.Set(g_app->m_left_menu.Get());
-    //         } else if (g_app->m_right_menu.Get() == e) {
-    //             g_app->m_right_menu.Set(g_app->m_left_menu.Get());
-    //         }
-    //         g_app->m_center_menu.Set(e);
-    //
-    //         App::Push<ui::OptionBox>(
-    //             "Press OK to restart Sphaira"_i18n, "OK"_i18n, [](auto){
-    //                 App::ExitRestart();
-    //             }
-    //         );
-    //     }
-    // }, i18n::get(g_app->m_center_menu.Get()), "Set the menu that appears on the center tab."_i18n);
+    options->Add<ui::SidebarEntryArray>("Set center menu"_i18n, menu_items, [menu_names](s64& index_out){
+        const auto e = menu_names[index_out];
+        if (g_app->m_center_menu.Get() != e) {
+            // swap menus around.
+            if (g_app->m_left_menu.Get() == e) {
+                g_app->m_left_menu.Set(g_app->m_left_menu.Get());
+            } else if (g_app->m_right_menu.Get() == e) {
+                g_app->m_right_menu.Set(g_app->m_left_menu.Get());
+            }
+            g_app->m_center_menu.Set(e);
+
+            App::Push<ui::OptionBox>(
+                "Press OK to restart HATS Tools"_i18n, "OK"_i18n, [](auto){
+                    App::ExitRestart();
+                }
+            );
+        }
+    }, i18n::get(g_app->m_center_menu.Get()), "Set the menu that appears on the center tab."_i18n);
 
 
-    // HIDDEN: options->Add<ui::SidebarEntryArray>("Set left-side menu"_i18n, menu_items, [menu_names](s64& index_out){
-    //     const auto e = menu_names[index_out];
-    //     if (g_app->m_left_menu.Get() != e) {
-    //         // swap menus around.
-    //         if (g_app->m_center_menu.Get() == e) {
-    //             g_app->m_center_menu.Set(g_app->m_left_menu.Get());
-    //         } else if (g_app->m_right_menu.Get() == e) {
-    //             g_app->m_right_menu.Set(g_app->m_left_menu.Get());
-    //         }
-    //         g_app->m_left_menu.Set(e);
-    //
-    //         App::Push<ui::OptionBox>(
-    //             "Press OK to restart Sphaira"_i18n, "OK"_i18n, [](auto){
-    //                 App::ExitRestart();
-    //             }
-    //         );
-    //     }
-    // }, i18n::get(g_app->m_left_menu.Get()), "Set the menu that appears on the left tab."_i18n);
+    options->Add<ui::SidebarEntryArray>("Set left-side menu"_i18n, menu_items, [menu_names](s64& index_out){
+        const auto e = menu_names[index_out];
+        if (g_app->m_left_menu.Get() != e) {
+            // swap menus around.
+            if (g_app->m_center_menu.Get() == e) {
+                g_app->m_center_menu.Set(g_app->m_left_menu.Get());
+            } else if (g_app->m_right_menu.Get() == e) {
+                g_app->m_right_menu.Set(g_app->m_left_menu.Get());
+            }
+            g_app->m_left_menu.Set(e);
 
-    // HIDDEN: options->Add<ui::SidebarEntryArray>("Set right-side menu"_i18n, menu_items, [menu_names](s64& index_out){
-    //     const auto e = menu_names[index_out];
-    //     if (g_app->m_right_menu.Get() != e) {
-    //         // swap menus around.
-    //         if (g_app->m_center_menu.Get() == e) {
-    //             g_app->m_center_menu.Set(g_app->m_right_menu.Get());
-    //         } else if (g_app->m_left_menu.Get() == e) {
-    //             g_app->m_left_menu.Set(g_app->m_right_menu.Get());
-    //         }
-    //         g_app->m_right_menu.Set(e);
-    //
-    //         App::Push<ui::OptionBox>(
-    //             "Press OK to restart HATS Tools"_i18n, "OK"_i18n, [](auto){
-    //                 App::ExitRestart();
-    //             }
-    //         );
-    //     }
-    // }, i18n::get(g_app->m_right_menu.Get()), "Set the menu that appears on the right tab."_i18n);
+            App::Push<ui::OptionBox>(
+                "Press OK to restart HATS Tools"_i18n, "OK"_i18n, [](auto){
+                    App::ExitRestart();
+                }
+            );
+        }
+    }, i18n::get(g_app->m_left_menu.Get()), "Set the menu that appears on the left tab."_i18n);
+
+    options->Add<ui::SidebarEntryArray>("Set right-side menu"_i18n, menu_items, [menu_names](s64& index_out){
+        const auto e = menu_names[index_out];
+        if (g_app->m_right_menu.Get() != e) {
+            // swap menus around.
+            if (g_app->m_center_menu.Get() == e) {
+                g_app->m_center_menu.Set(g_app->m_right_menu.Get());
+            } else if (g_app->m_left_menu.Get() == e) {
+                g_app->m_left_menu.Set(g_app->m_right_menu.Get());
+            }
+            g_app->m_right_menu.Set(e);
+
+            App::Push<ui::OptionBox>(
+                "Press OK to restart HATS Tools"_i18n, "OK"_i18n, [](auto){
+                    App::ExitRestart();
+                }
+            );
+        }
+    }, i18n::get(g_app->m_right_menu.Get()), "Set the menu that appears on the right tab."_i18n);
 
     // Theme options
     ui::SidebarEntryArray::Items theme_items{};
@@ -2020,6 +2131,288 @@ void App::DisplayAdvancedOptions(bool left_side) {
     );
 }
 
+void App::DisplayHatsInstallOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("HATS Install Mode"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    options->Add<ui::SidebarEntryBool>("Auto backup before install"_i18n, App::GetBackupEnabled(), [](bool& enable){
+        App::SetBackupEnabled(enable);
+    }, "Backs up atmosphere and bootloader to /sdbackup before HATS installation"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Skip backup reminder"_i18n, App::GetSkipBackupWarning(), [](bool& enable){
+        App::SetSkipBackupWarning(enable);
+    }, "Don't show backup warning before HATS installation"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Keep downloaded zips"_i18n, App::GetKeepZipsEnabled(), [](bool& enable){
+        App::SetKeepZipsEnabled(enable);
+    }, "Keep downloaded HATS pack zips in cache for reinstallation"_i18n);
+
+    ui::SidebarEntryArray::Items install_mode_items;
+    install_mode_items.push_back("Overwrite Everything"_i18n);
+    install_mode_items.push_back("Replace Atmosphere"_i18n);
+    install_mode_items.push_back("Replace Atmosphere+Bootloader"_i18n);
+    install_mode_items.push_back("Replace Atmosphere+Bootloader+Switch"_i18n);
+
+    auto current_install_mode = g_app->m_installer_install_mode.Get();
+    s64 install_mode_index = 0;
+    if (current_install_mode == "replace_ams") {
+        install_mode_index = 1;
+    } else if (current_install_mode == "replace_ams_bl") {
+        install_mode_index = 2;
+    } else if (current_install_mode == "clean") {
+        install_mode_index = 3;
+    }
+
+    options->Add<ui::SidebarEntryArray>("Install option"_i18n, install_mode_items, [](s64& index_out){
+        const char* mode = "overwrite";
+        if (index_out == 1) {
+            mode = "replace_ams";
+        } else if (index_out == 2) {
+            mode = "replace_ams_bl";
+        } else if (index_out == 3) {
+            mode = "clean";
+        }
+
+        ini_puts("installer", "install_mode", mode, App::CONFIG_PATH);
+        g_app->m_installer_install_mode.Set(mode);
+
+        char notify_msg[64];
+        std::snprintf(notify_msg, sizeof(notify_msg), "Install mode set to: %s", mode);
+        App::Notify(notify_msg);
+    }, install_mode_index, i18n::get("install_option_info",
+            "Select install mode for HATS installer:\n"
+            "[overwrite] - Only overwrite files, no deletion (safest, preserves cheats/mods)\n"
+            "[replace_ams] - Delete and replace /atmosphere only\n"
+            "[replace_ams_bl] - Delete and replace /atmosphere and /bootloader\n"
+            "[clean] - Delete and replace /atmosphere, /bootloader, and /switch (fresh install)\n\n"
+            "This writes to sd:/config/hats-tools/config.ini\n"
+            "The payload will read this config on boot"
+        )
+    );
+}
+
+void App::DisplayHatsThemeOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("Theme and Audio"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    ui::SidebarEntryArray::Items theme_items{};
+    const auto theme_meta = App::GetThemeMetaList();
+    for (auto& p : theme_meta) {
+        theme_items.emplace_back(p.name);
+    }
+
+    options->Add<ui::SidebarEntryArray>("Theme"_i18n, theme_items, [](s64& index_out){
+        App::SetTheme(index_out);
+    }, App::GetThemeIndex(), "Customise the look of HATS Tools by changing the theme"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Theme music"_i18n, App::GetThemeMusicEnable(), [](bool& enable){
+        App::SetThemeMusicEnable(enable);
+    },  i18n::get("bgm_enable_info",
+            "Enable background music.\n"
+            "Each theme can have it's own music file. "
+            "If a theme does not set a music file, the default music is loaded instead (if it exists)."
+        )
+    );
+}
+
+void App::DisplayPowerUserOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("Power User Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    options->Add<ui::SidebarEntryBool>("Logging"_i18n, App::GetLogEnable(), [](bool& enable){
+        App::SetLogEnable(enable);
+    }, "Logs to /config/hats-tools/log.txt"_i18n);
+
+    options->Add<ui::SidebarEntryBool>("God Mode"_i18n, App::GetGodModeEnabled(), [](bool& enable){
+        App::SetGodModeEnable(enable);
+    },  i18n::get("god_mode_info",
+            "Allows deletion of protected system files and components.\n"
+            "This includes Atmosphere, Hekate, and other critical files.\n\n"
+            "WARNING: Only enable if you know what you're doing!"
+        )
+    );
+}
+
+void App::DisplayInstallOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("Game Install Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    ui::SidebarEntryArray::Items install_items;
+    install_items.push_back("System memory"_i18n);
+    install_items.push_back("microSD card"_i18n);
+
+    options->Add<ui::SidebarEntryArray>("Install location"_i18n, install_items, [](s64& index_out){
+        g_app->m_install_sd.Set(index_out != 0);
+    }, g_app->m_install_sd.Get() ? 1 : 0);
+
+    options->Add<ui::SidebarEntryBool>("Allow downgrade"_i18n, g_app->m_allow_downgrade,
+        "Allows installing title updates that are lower than the currently installed update."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip if already installed"_i18n, g_app->m_skip_if_already_installed,
+        "Skips installing titles or NCAs if they're already installed."_i18n);
+    options->Add<ui::SidebarEntryBool>("Ticket only"_i18n, g_app->m_ticket_only,
+        "Installs tickets only."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip base"_i18n, g_app->m_skip_base,
+        "Skips installing the base application."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip patch"_i18n, g_app->m_skip_patch,
+        "Skips installing updates."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip dlc"_i18n, g_app->m_skip_addon,
+        "Skips installing DLC."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip data patch"_i18n, g_app->m_skip_data_patch,
+        "Skips installing DLC update data."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip ticket"_i18n, g_app->m_skip_ticket,
+        "Skips installing tickets. Not recommended."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip NCA hash verify"_i18n, g_app->m_skip_nca_hash_verify,
+        "Skips NCA SHA-256 verification. Not recommended unless required."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip RSA header verify"_i18n, g_app->m_skip_rsa_header_fixed_key_verify,
+        "Skips RSA NCA header verification. Useful for some converted packages."_i18n);
+    options->Add<ui::SidebarEntryBool>("Skip RSA NPDM verify"_i18n, g_app->m_skip_rsa_npdm_fixed_key_verify,
+        "Skips RSA NPDM verification."_i18n);
+    options->Add<ui::SidebarEntryBool>("Ignore distribution bit"_i18n, g_app->m_ignore_distribution_bit,
+        "Ignores the NCA distribution bit."_i18n);
+    options->Add<ui::SidebarEntryBool>("Convert to common ticket"_i18n, g_app->m_convert_to_common_ticket,
+        "[Requires keys] Converts personalised tickets to common tickets."_i18n);
+    options->Add<ui::SidebarEntryBool>("Convert to standard crypto"_i18n, g_app->m_convert_to_standard_crypto,
+        "[Requires keys] Converts titlekey crypto to standard crypto."_i18n);
+}
+
+void App::DisplayFtpOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("FTP Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    options->SetOnExitWhenChanged([](){
+        if (App::GetFtpEnable()) {
+            App::Notify("Restarting FTP server..."_i18n);
+            App::SetFtpEnable(false);
+            App::SetFtpEnable(true);
+        }
+    });
+
+    options->Add<ui::SidebarEntryBool>("Enable"_i18n, App::GetFtpEnable(), [](bool& enable){
+        App::SetFtpEnable(enable);
+    }, "Enable FTP server to run in the background."_i18n);
+
+    options->Add<ui::SidebarEntryTextInput>(
+        "Port"_i18n, App::GetApp()->m_ftp_port.Get(), "", "", 1, 5,
+        "Opens the FTP server on this port."_i18n,
+        [](auto* input){
+            App::GetApp()->m_ftp_port.Set(input->GetNumValue());
+        }
+    );
+
+    options->Add<ui::SidebarEntryBool>("Anon"_i18n, App::GetApp()->m_ftp_anon,
+        "Allow login without a username and password."_i18n);
+
+    options->Add<ui::SidebarEntryTextInput>(
+        "User"_i18n, App::GetApp()->m_ftp_user.Get(), "", "", -1, 64,
+        "Sets the username, required if anon is disabled."_i18n,
+        [](auto* input){
+            App::GetApp()->m_ftp_user.Set(input->GetValue());
+        }
+    );
+
+    options->Add<ui::SidebarEntryTextInput>(
+        "Pass"_i18n, App::GetApp()->m_ftp_pass.Get(), "", "", -1, 64,
+        "Sets the password, required if anon is disabled."_i18n,
+        [](auto* input){
+            App::GetApp()->m_ftp_pass.Set(input->GetValue());
+        }
+    );
+
+    options->Add<ui::SidebarEntryBool>("Show album"_i18n, App::GetApp()->m_ftp_show_album,
+        "Shows the microSD card album folder."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show Atmosphere contents"_i18n, App::GetApp()->m_ftp_show_ams_contents,
+        "Shows /atmosphere/contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show bis storage"_i18n, App::GetApp()->m_ftp_show_bis_storage,
+        "Shows BIS storage images."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show bis file systems"_i18n, App::GetApp()->m_ftp_show_bis_fs,
+        "Shows BIS file systems."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show system contents"_i18n, App::GetApp()->m_ftp_show_content_system,
+        "Shows system contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show user contents"_i18n, App::GetApp()->m_ftp_show_content_user,
+        "Shows user contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show microSD contents"_i18n, App::GetApp()->m_ftp_show_content_sd,
+        "Shows microSD NCA contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show games"_i18n, App::GetApp()->m_ftp_show_games,
+        "Shows installed games read-only over FTP."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show install"_i18n, App::GetApp()->m_ftp_show_install,
+        "Shows the FTP install folder."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show mounts"_i18n, App::GetApp()->m_ftp_show_mounts,
+        "Shows configured mounts over FTP."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show switch"_i18n, App::GetApp()->m_ftp_show_switch,
+        "Shows the /switch folder."_i18n);
+}
+
+void App::DisplayMtpOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("MTP Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    options->SetOnExitWhenChanged([](){
+        if (App::GetMtpEnable()) {
+            App::Notify("Restarting MTP server..."_i18n);
+            App::SetMtpEnable(false);
+            App::SetMtpEnable(true);
+        }
+    });
+
+    options->Add<ui::SidebarEntryBool>("Enable"_i18n, App::GetMtpEnable(), [](bool& enable){
+        App::SetMtpEnable(enable);
+    }, "Enable MTP server to run in the background."_i18n);
+
+    options->Add<ui::SidebarEntryBool>("Show album"_i18n, App::GetApp()->m_mtp_show_album,
+        "Shows the microSD card album folder."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show microSD contents"_i18n, App::GetApp()->m_mtp_show_content_sd,
+        "Shows microSD NCA contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show system contents"_i18n, App::GetApp()->m_mtp_show_content_system,
+        "Shows system contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show user contents"_i18n, App::GetApp()->m_mtp_show_content_user,
+        "Shows user contents."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show games"_i18n, App::GetApp()->m_mtp_show_games,
+        "Shows installed games read-only over MTP."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show install"_i18n, App::GetApp()->m_mtp_show_install,
+        "Shows the MTP install folder."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show mounts"_i18n, App::GetApp()->m_mtp_show_mounts,
+        "Shows configured mounts over MTP."_i18n);
+    options->Add<ui::SidebarEntryBool>("Show DevNull"_i18n, App::GetApp()->m_mtp_show_speedtest,
+        "Shows the virtual USB speed test folder."_i18n);
+}
+
+void App::DisplayDumpOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("Game Export Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    ui::SidebarEntryArray::Items nsz_level_items;
+    for (auto& e : NSZ_COMPRESS_LEVEL_OPTIONS) {
+        nsz_level_items.emplace_back(i18n::get(e.name));
+    }
+
+    ui::SidebarEntryArray::Items nsz_thread_items;
+    for (auto& e : NSZ_COMPRESS_THREAD_OPTIONS) {
+        nsz_thread_items.emplace_back(i18n::get(e.name));
+    }
+
+    options->Add<ui::SidebarEntryBool>("Create nested folder"_i18n, g_app->m_dump_app_folder,
+        "Creates a folder using the game name when exporting."_i18n);
+    options->Add<ui::SidebarEntryBool>("Append folder with .xci"_i18n, g_app->m_dump_append_folder_with_xci,
+        "Names XCI export folders with the .xci extension."_i18n);
+    options->Add<ui::SidebarEntryBool>("Trim XCI"_i18n, g_app->m_dump_trim_xci,
+        "Removes unused data at the end of XCI dumps."_i18n);
+    options->Add<ui::SidebarEntryBool>("Label trimmed XCI"_i18n, g_app->m_dump_label_trim_xci,
+        "Adds a trimmed label to trimmed XCI output names."_i18n);
+    options->Add<ui::SidebarEntryBool>("Convert to common ticket"_i18n, g_app->m_dump_convert_to_common_ticket,
+        "Converts personalised tickets to common tickets when exporting."_i18n);
+
+    options->Add<ui::SidebarEntryArray>("NSZ level"_i18n, nsz_level_items, [](s64& index_out){
+        g_app->m_nsz_compress_level.Set(index_out);
+    }, g_app->m_nsz_compress_level.Get(), "Sets the compression level used when exporting to NSZ."_i18n);
+
+    options->Add<ui::SidebarEntryArray>("NSZ threads"_i18n, nsz_thread_items, [](s64& index_out){
+        g_app->m_nsz_compress_threads.Set(index_out);
+    }, g_app->m_nsz_compress_threads.Get(), "Sets the number of threads used for NSZ compression."_i18n);
+
+    options->Add<ui::SidebarEntryBool>("NSZ long distance mode"_i18n, g_app->m_nsz_compress_ldm,
+        "Enables long distance matching for NSZ compression."_i18n);
+}
+
 App::~App() {
     App::SetBoostMode(true);
 
@@ -2034,6 +2427,9 @@ App::~App() {
             nxlinkSignalExit();
             audio::ExitSignal();
             curl::ExitSignal();
+            #ifdef ENABLE_FTPSRV
+            ftpsrv::ExitSignal();
+            #endif
         }
 
         // this has to be called before any cleanup to ensure the lifetime of
@@ -2069,6 +2465,20 @@ App::~App() {
                 SCOPED_TIMESTAMP("nxlink exit");
                 nxlinkExit();
             }
+
+            #ifdef ENABLE_LIBHAZE
+            if (App::GetMtpEnable()) {
+                SCOPED_TIMESTAMP("mtp exit");
+                libhaze::Exit();
+            }
+            #endif
+
+            #ifdef ENABLE_FTPSRV
+            if (App::GetFtpEnable()) {
+                SCOPED_TIMESTAMP("ftp server exit");
+                ftpsrv::Exit();
+            }
+            #endif
 
             {
                 SCOPED_TIMESTAMP("curl_exit");

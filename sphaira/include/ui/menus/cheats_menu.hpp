@@ -21,6 +21,7 @@ enum class CheatSource {
     Gbatemp,
     Cheatslips,
     NxDb,       // nx-cheats-db (default, local database)
+    ManualFile, // local .txt cheat file import
 };
 
 // Structure to hold cheat entry data
@@ -164,6 +165,7 @@ private:
 // Menu to select installed games for cheat downloading
 struct CheatGameSelectMenu final : MenuBase {
     CheatGameSelectMenu(CheatSource source);
+    CheatGameSelectMenu(CheatSource source, const fs::FsPath& manual_cheat_path);
     ~CheatGameSelectMenu();
 
     auto GetShortTitle() const -> const char* override { return "Select Game"; }
@@ -178,6 +180,7 @@ private:
 
 private:
     CheatSource m_source;
+    fs::FsPath m_manual_cheat_path{};
     std::vector<GameCheatInfo> m_games;
     s64 m_index{};
     std::unique_ptr<List> m_list;

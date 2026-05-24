@@ -18,7 +18,10 @@
             "inherits":["core"],
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "MinSizeRel",
-                "LTO": true
+                "LTO": true,
+
+                "ENABLE_FTPSRV": true,
+                "ENABLE_LIBHAZE": true
             }
         },
         {
