@@ -701,9 +701,11 @@ void PackMenu::ShowLaunchDialog() {
                     // Configuration successful, now reboot
                     hats_log_write("hats: launching HATS installer (rebooting to hekate...)\n");
 
-                    spsmInitialize();
-                    spsmShutdown(true);
-                    // Should not reach here
+                    rc = utils::requestForcedReboot();
+                    if (R_FAILED(rc)) {
+                        hats_log_write("hats: reboot failed with result: 0x%X\n", rc);
+                        App::Push<ErrorBox>(rc, "Failed to reboot");
+                    }
                 }
             );
         }
@@ -1038,8 +1040,10 @@ void CacheManagerMenu::ReinstallFromCache() {
                                             return;
                                         }
 
-                                        spsmInitialize();
-                                        spsmShutdown(true);
+                                        rc = utils::requestForcedReboot();
+                                        if (R_FAILED(rc)) {
+                                            App::Push<ErrorBox>(rc, "Failed to reboot");
+                                        }
                                     }
                                 );
                             }

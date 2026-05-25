@@ -18,6 +18,7 @@
 #include "log.hpp"
 #include "hats_version.hpp"
 #include "i18n.hpp"
+#include "utils/utils.hpp"
 
 #include "stb_image.h"
 
@@ -36,33 +37,6 @@ auto GetElapsedSeconds(u64 start_tick) -> s64 {
 
     const auto elapsed_ns = armTicksToNs(armGetSystemTick() - start_tick);
     return static_cast<s64>(elapsed_ns / 1'000'000'000ULL);
-}
-
-auto RequestForcedReboot() -> Result {
-    Result rc = spsmInitialize();
-    if (R_SUCCEEDED(rc)) {
-        rc = spsmShutdown(true);
-        spsmExit();
-        if (R_SUCCEEDED(rc)) {
-            return rc;
-        }
-    }
-
-    rc = appletRequestToReboot();
-    if (R_SUCCEEDED(rc)) {
-        return rc;
-    }
-
-    rc = bpcInitialize();
-    if (R_SUCCEEDED(rc)) {
-        rc = bpcRebootSystem();
-        bpcExit();
-        if (R_SUCCEEDED(rc)) {
-            return rc;
-        }
-    }
-
-    return rc;
 }
 
 } // namespace
@@ -354,12 +328,12 @@ void MainMenu::RunWipeSysmmc() {
     }
 
     App::Notify("SYSMMC (OFW/Stock) wiped. Rebooting..."_i18n);
-    if (R_FAILED(RequestForcedReboot())) {
+    if (R_FAILED(utils::requestForcedReboot())) {
         App::Push<OptionBox>(
             "SYSMMC (OFW/Stock) wipe completed. You must reboot the console now."_i18n,
             "Reboot"_i18n,
             [](auto) {
-                RequestForcedReboot();
+                utils::requestForcedReboot();
             }
         );
     }

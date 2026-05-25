@@ -24,6 +24,7 @@
 
 #include <yyjson.h>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <format>
@@ -51,6 +52,7 @@ constexpr const char* VERSIONS_DB_URL = "https://raw.githubusercontent.com/Hamle
 constexpr const char* ATMOSPHERE_CONTENTS_PATH = "/atmosphere/contents";
 constexpr const char* CHEATS_SUBDIR = "cheats";
 constexpr const char* TOKEN_PATH = "/config/hats-tools/cheatslips_token.json";
+constexpr const char* PAYLOAD_LAUNCH_CONFIG_PATH = "/config/hats-tools/payload-launch.ini";
 
 // nx-cheats-db local database paths (optional cache)
 constexpr const char* NX_DB_PATH = "/config/hats-tools/cheats-db";
@@ -677,6 +679,82 @@ auto GetBuildIdFailureMessage(BuildIdFailureReason reason) -> std::string {
         default:
             return {};
     }
+}
+
+bool WritePayloadLaunchConfig(const fs::FsPath& payload_path) {
+    fs::FsNativeSd fs;
+    fs.CreateDirectoryRecursively("/config/hats-tools");
+
+    std::string payload_path_fatfs = static_cast<const char*>(payload_path);
+    if (payload_path_fatfs.starts_with('/')) {
+        payload_path_fatfs = "sd:" + payload_path_fatfs;
+    }
+
+    FILE* f = std::fopen(PAYLOAD_LAUNCH_CONFIG_PATH, "wb");
+    if (!f) {
+        log_write("[Cheats] failed to open payload launch config for writing\n");
+        return false;
+    }
+
+    const int written = std::fprintf(
+        f,
+        "[payload]\n"
+        "launch_path=%s\n",
+        payload_path_fatfs.c_str()
+    );
+    std::fclose(f);
+    fsdevCommitDevice("sdmc");
+
+    return written > 0;
+}
+
+void ShowProdKeysMissingDialog() {
+    fs::FsPath lockpick_payload;
+    if (!utils::findLockpickPayload(lockpick_payload)) {
+        App::Push<OptionBox>(
+            "prod.keys not found.\n\nPlace Lockpick_RCM payload at:\n/bootloader/payloads/lockpick_rcm_pro.bin"_i18n,
+            "OK"_i18n
+        );
+        return;
+    }
+
+    App::Push<OptionBox>(
+        "prod.keys not found.\n\nLaunch Lockpick_RCM payload now?"_i18n,
+        "Cancel"_i18n,
+        "Launch"_i18n,
+        1,
+        [lockpick_payload](auto op_index) {
+            if (!op_index || *op_index != 1) {
+                return;
+            }
+
+            log_write("[Cheats] launching Lockpick through HATS installer payload: %s\n",
+                      static_cast<const char*>(lockpick_payload));
+
+            auto app = App::GetApp();
+            const fs::FsPath installer_payload = app->m_installer_payload.Get().c_str();
+            fs::FsNativeSd fs;
+            if (!fs.FileExists(installer_payload)) {
+                App::Push<ErrorBox>("HATS installer payload not found");
+                return;
+            }
+
+            if (!WritePayloadLaunchConfig(lockpick_payload)) {
+                App::Push<ErrorBox>("Failed to configure payload launch");
+                return;
+            }
+
+            if (!utils::setHekateAutobootPayload(static_cast<const char*>(installer_payload))) {
+                App::Push<ErrorBox>("Failed to configure hekate");
+                return;
+            }
+
+            const Result rc = utils::requestForcedReboot();
+            if (R_FAILED(rc)) {
+                App::Push<ErrorBox>(rc, "Failed to reboot");
+            }
+        }
+    );
 }
 
 // Get version for a title (like aio-switch-updater does)
@@ -4271,8 +4349,10 @@ void CheatDownloadMenu::FetchCheats() {
     log_write("[Cheats] Exact Build ID detection failed for CheatSlips, reason=%d\n",
               static_cast<int>(lookup.failure_reason));
 
-    if (lookup.failure_reason == BuildIdFailureReason::ProdKeysMissing ||
-        lookup.failure_reason == BuildIdFailureReason::GameNotFound) {
+    if (lookup.failure_reason == BuildIdFailureReason::ProdKeysMissing) {
+        ShowProdKeysMissingDialog();
+        m_should_close = true;
+    } else if (lookup.failure_reason == BuildIdFailureReason::GameNotFound) {
         App::Notify(m_error_message);
         m_should_close = true;
     }
@@ -4303,7 +4383,11 @@ void CheatDownloadMenu::FetchCheatsFromNxDb() {
         m_loading = false;
         m_loaded = true;
         m_error_message = GetBuildIdFailureMessage(lookup.failure_reason);
-        App::Notify(m_error_message);
+        if (lookup.failure_reason == BuildIdFailureReason::ProdKeysMissing) {
+            ShowProdKeysMissingDialog();
+        } else {
+            App::Notify(m_error_message);
+        }
         m_should_close = true;
         return;
     }

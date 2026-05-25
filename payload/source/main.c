@@ -6,7 +6,7 @@
  */
 
 #ifndef VERSION
-#define VERSION "1.0.1"
+#define VERSION "1.0.3"
 #endif
 
 #include <string.h>
@@ -37,6 +37,7 @@
 #define HEKATE_INI_BAK   "sd:/bootloader/hekate_ipl.ini.bak"
 #define HEKATE_INI       "sd:/bootloader/hekate_ipl.ini"
 #define CONFIG_PATH       "sd:/config/hats-tools/config.ini"
+#define LAUNCH_CONFIG_PATH "sd:/config/hats-tools/payload-launch.ini"
 #define ATMOSPHERE_PATH   "sd:/atmosphere"
 #define BOOTLOADER_PATH   "sd:/bootloader"
 #define SWITCH_PATH       "sd:/switch"
@@ -93,6 +94,7 @@ volatile nyx_storage_t *nyx_str = (nyx_storage_t *)NYX_STORAGE_ADDR;
 static void *coreboot_addr;
 static int total_errors = 0;
 static install_mode_t install_mode = MODE_OVERWRITE;  // Default to [overwrite] mode (safest)
+static char launch_payload_path[256] = {0};
 
 // Use BDK colors (already defined in types.h)
 #define COLOR_CYAN    0xFF00FFFF
@@ -335,6 +337,59 @@ cleanup:
         if (sec->name) free(sec->name);
         free(sec);
     }
+}
+
+// Parse one-shot payload launch request written by HATS Tools.
+// This lets the installer payload restore hekate_ipl.ini before chainloading
+// an external payload such as Lockpick_RCM.
+static bool parse_launch_payload(void) {
+    link_t config_list;
+    list_init(&config_list);
+    launch_payload_path[0] = 0;
+
+    if (!ini_parse(&config_list, (char *)LAUNCH_CONFIG_PATH, false)) {
+        return false;
+    }
+
+    bool found = false;
+    LIST_FOREACH_ENTRY(ini_sec_t, sec, &config_list, link) {
+        if (sec->type != INI_CHOICE)
+            continue;
+
+        if (strcmp(sec->name, "payload") == 0) {
+            LIST_FOREACH_ENTRY(ini_kv_t, kv, &sec->kvs, link) {
+                if (strcmp(kv->key, "launch_path") == 0 && kv->val && kv->val[0]) {
+                    strncpy(launch_payload_path, kv->val, sizeof(launch_payload_path) - 1);
+                    launch_payload_path[sizeof(launch_payload_path) - 1] = 0;
+                    found = true;
+                    goto cleanup;
+                }
+            }
+        }
+    }
+
+cleanup:
+    link_t *iter, *safe;
+    LIST_FOREACH_SAFE(iter, &config_list) {
+        ini_sec_t *sec = CONTAINER_OF(iter, ini_sec_t, link);
+        if (sec->type == INI_CHOICE) {
+            link_t *kv_iter, *kv_safe;
+            LIST_FOREACH_SAFE(kv_iter, &sec->kvs) {
+                ini_kv_t *kv = CONTAINER_OF(kv_iter, ini_kv_t, link);
+                if (kv->key) free(kv->key);
+                if (kv->val) free(kv->val);
+                free(kv);
+            }
+        }
+        if (sec->name) free(sec->name);
+        free(sec);
+    }
+
+    if (found) {
+        f_unlink(LAUNCH_CONFIG_PATH);
+    }
+
+    return found;
 }
 
 // Find and delete HATS version file(s) in root
@@ -674,6 +729,37 @@ void ipl_main(void) {
     bpmp_clk_rate_set(BPMP_CLK_DEFAULT_BOOST);
 
     print_header();
+
+    if (parse_launch_payload()) {
+        set_color(COLOR_CYAN);
+        gfx_printf("Payload launch request found:\n%s\n\n", launch_payload_path);
+        set_color(COLOR_WHITE);
+
+        if (restore_hekate_ini()) {
+            set_color(COLOR_GREEN);
+            gfx_printf("[OK] hekate_ipl.ini restored\n");
+            set_color(COLOR_WHITE);
+        }
+
+        gfx_printf("Launching payload in 3 seconds...\n");
+        msleep(3000);
+
+        if (file_exists(launch_payload_path)) {
+            launch_payload(launch_payload_path);
+        }
+
+        set_color(COLOR_RED);
+        gfx_printf("\nERROR: payload not found!\n");
+        gfx_printf("Path: %s\n", launch_payload_path);
+        set_color(COLOR_WHITE);
+        msleep(3000);
+
+        if (file_exists(PAYLOAD_PATH)) {
+            launch_payload(PAYLOAD_PATH);
+        }
+
+        power_set_state(POWER_OFF_REBOOT);
+    }
 
     // Parse config.ini for install mode
     parse_config();

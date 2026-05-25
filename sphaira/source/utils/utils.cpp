@@ -6,6 +6,9 @@
 #include <cstdio>
 #include <switch.h>
 #include <vector>
+#include <algorithm>
+#include <cctype>
+#include <string>
 
 namespace sphaira::utils {
 namespace {
@@ -67,138 +70,169 @@ std::string formatSizeNetwork(u64 size) {
 namespace {
     constexpr const char* HEKATE_INI_PATH = "/bootloader/hekate_ipl.ini";
     constexpr const char* HEKATE_INI_BAK_PATH = "/bootloader/hekate_ipl.ini.bak";
-    constexpr const char* HEKATE_INI_MOD_PATH = "/config/hats-tools/hekate_ipl_mod.ini";
-    constexpr const char* HEKATE_INI_MOD_ROMFS = "romfs:/hekate_ipl_mod.ini";
+    constexpr const char* LOCKPICK_PAYLOAD_DIR = "/bootloader/payloads";
+    constexpr const char* LOCKPICK_PAYLOAD_DIR_LEGACY = "/bootloader/payload";
 
-    // Simple file copy function
-    bool copyFile(const char* src_path, const char* dst_path) {
-        FILE* src = fopen(src_path, "rb");
-        if (!src) {
-            log_write("copyFile: failed to open source: %s\n", src_path);
-            return false;
-        }
-
-        FILE* dst = fopen(dst_path, "wb");
-        if (!dst) {
-            log_write("copyFile: failed to open destination: %s\n", dst_path);
-            fclose(src);
-            return false;
-        }
-
-        // Copy file in chunks
-        fseek(src, 0, SEEK_END);
-        long size = ftell(src);
-        fseek(src, 0, SEEK_SET);
-
-        char buffer[4096];
-        size_t total_copied = 0;
-        while (total_copied < (size_t)size) {
-            size_t to_read = sizeof(buffer);
-            if (to_read > (size_t)(size - total_copied)) {
-                to_read = size - total_copied;
+    bool backupHekateIni() {
+        FILE* f_bak_check = fopen(HEKATE_INI_BAK_PATH, "rb");
+        if (f_bak_check) {
+            fseek(f_bak_check, 0, SEEK_END);
+            const long bak_size = ftell(f_bak_check);
+            fclose(f_bak_check);
+            if (bak_size > 0) {
+                log_write("backupHekateIni: backup already exists (%ld bytes), preserving it\n", bak_size);
+                return true;
             }
-            size_t read = fread(buffer, 1, to_read, src);
-            if (read == 0) break;
-            fwrite(buffer, 1, read, dst);
-            total_copied += read;
         }
 
-        fclose(src);
-        fflush(dst);
-        fsdevCommitDevice("sdmc");
-        fclose(dst);
-
-        log_write("copyFile: copied %s -> %s (%zu bytes)\n", src_path, dst_path, total_copied);
-        return true;
-    }
-
-    // Ensure the pre-made modded ini exists on SD card
-    bool ensureHekateModIniExists() {
-        // Check if it already exists on SD
-        FILE* f_check = fopen(HEKATE_INI_MOD_PATH, "rb");
-        if (f_check) {
-            fclose(f_check);
-            log_write("ensureHekateModIniExists: %s already exists\n", HEKATE_INI_MOD_PATH);
+        FILE* f_ini = fopen(HEKATE_INI_PATH, "rb");
+        if (!f_ini) {
+            log_write("backupHekateIni: original hekate_ipl.ini not found\n");
             return true;
         }
 
-        // Extract from romfs to SD card
-        log_write("ensureHekateModIniExists: extracting %s to %s\n", HEKATE_INI_MOD_ROMFS, HEKATE_INI_MOD_PATH);
+        fseek(f_ini, 0, SEEK_END);
+        const long size = ftell(f_ini);
+        fseek(f_ini, 0, SEEK_SET);
 
-        // Create directory if needed
-        fs::CreateDirectoryRecursively(HEKATE_INI_MOD_PATH);
+        if (size <= 0) {
+            fclose(f_ini);
+            return true;
+        }
 
-        return copyFile(HEKATE_INI_MOD_ROMFS, HEKATE_INI_MOD_PATH);
+        std::vector<u8> buffer(size);
+        fread(buffer.data(), 1, size, f_ini);
+        fclose(f_ini);
+
+        FILE* f_bak = fopen(HEKATE_INI_BAK_PATH, "wb");
+        if (!f_bak) {
+            log_write("backupHekateIni: failed to create backup\n");
+            return false;
+        }
+
+        fwrite(buffer.data(), 1, size, f_bak);
+        fflush(f_bak);
+        fsdevCommitDevice("sdmc");
+        fclose(f_bak);
+        log_write("backupHekateIni: created backup (%ld bytes)\n", size);
+        return true;
+    }
+
+    bool writeHekateAutobootIni(const char* payload_path) {
+        FILE* f_out = fopen(HEKATE_INI_PATH, "wb");
+        if (!f_out) {
+            log_write("writeHekateAutobootIni: failed to open %s for writing\n", HEKATE_INI_PATH);
+            return false;
+        }
+
+        const int written = std::fprintf(
+            f_out,
+            "[config]\n"
+            "autoboot=1\n"
+            "autoboot_list=0\n"
+            "bootwait=0\n"
+            "verification=1\n"
+            "backlight=100\n"
+            "autohosoff=2\n"
+            "autonogc=1\n"
+            "updater2p=1\n"
+            "\n"
+            "[HATS Payload]\n"
+            "payload=%s\n",
+            payload_path
+        );
+
+        fclose(f_out);
+        fsdevCommitDevice("sdmc");
+        return written > 0;
+    }
+
+    std::string toLower(std::string value) {
+        std::ranges::transform(value, value.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return value;
+    }
+
+    bool isLockpickPayloadName(const std::string& name) {
+        const auto lower = toLower(name);
+        return lower.starts_with("lockpick_rcm") && lower.ends_with(".bin");
+    }
+
+    bool findLockpickPayloadInDir(const char* dir_path, fs::FsPath& out, bool exact_only) {
+        fs::FsNativeSd fs;
+        fs::Dir dir;
+        if (R_FAILED(fs.OpenDirectory(dir_path, FsDirOpenMode_ReadFiles | FsDirOpenMode_NoFileSize, &dir))) {
+            return false;
+        }
+
+        std::vector<FsDirectoryEntry> entries;
+        if (R_FAILED(dir.ReadAll(entries))) {
+            return false;
+        }
+
+        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+            return toLower(a.name) < toLower(b.name);
+        });
+
+        for (const auto& entry : entries) {
+            const auto lower = toLower(entry.name);
+            if (lower == "lockpick_rcm_pro.bin") {
+                out = fs::AppendPath(dir_path, entry.name);
+                return true;
+            }
+        }
+
+        if (exact_only) {
+            return false;
+        }
+
+        for (const auto& entry : entries) {
+            if (isLockpickPayloadName(entry.name)) {
+                out = fs::AppendPath(dir_path, entry.name);
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
-// Set hekate_ipl.ini to auto-boot HATS installer payload
-// This is a simplified version that:
-// 1. Ensures the pre-made modded ini exists on SD card
-// 2. Backs up the original hekate_ipl.ini to .bak
-// 3. Copies the pre-made modded ini to hekate_ipl.ini
+// Set hekate_ipl.ini to auto-boot a payload through hekate.
+// Backs up the original hekate_ipl.ini to .bak, then writes a temporary
+// autoboot entry that points to payload_path.
 bool setHekateAutobootPayload(const char* payload_path) {
     log_write("setHekateAutobootPayload: setting up autoboot for %s\n", payload_path);
 
-    // Ensure the pre-made modded ini exists on SD card (extract from romfs if needed)
-    if (!ensureHekateModIniExists()) {
-        log_write("setHekateAutobootPayload: failed to ensure modded ini exists\n");
+    if (!backupHekateIni()) {
+        log_write("setHekateAutobootPayload: failed to backup hekate ini\n");
         return false;
     }
 
-    // Check if backup already exists
-    bool backup_exists = false;
-    FILE* f_bak_check = fopen(HEKATE_INI_BAK_PATH, "rb");
-    if (f_bak_check) {
-        fseek(f_bak_check, 0, SEEK_END);
-        long bak_size = ftell(f_bak_check);
-        fclose(f_bak_check);
-        if (bak_size > 0) {
-            backup_exists = true;
-            log_write("setHekateAutobootPayload: backup already exists (%ld bytes), preserving it\n", bak_size);
-        }
-    }
-
-    // Create backup if it doesn't exist
-    if (!backup_exists) {
-        // Read original hekate_ipl.ini
-        FILE* f_ini = fopen(HEKATE_INI_PATH, "rb");
-        if (f_ini) {
-            fseek(f_ini, 0, SEEK_END);
-            long size = ftell(f_ini);
-            fseek(f_ini, 0, SEEK_SET);
-
-            if (size > 0) {
-                std::vector<u8> buffer(size);
-                fread(buffer.data(), 1, size, f_ini);
-                fclose(f_ini);
-
-                // Write backup
-                FILE* f_bak = fopen(HEKATE_INI_BAK_PATH, "wb");
-                if (f_bak) {
-                    fwrite(buffer.data(), 1, size, f_bak);
-                    fflush(f_bak);
-                    fsdevCommitDevice("sdmc");
-                    fclose(f_bak);
-                    log_write("setHekateAutobootPayload: created backup (%ld bytes)\n", size);
-                }
-            } else {
-                fclose(f_ini);
-            }
-        } else {
-            log_write("setHekateAutobootPayload: original hekate_ipl.ini not found\n");
-        }
-    }
-
-    // Copy the pre-made modded ini to hekate_ipl.ini
-    if (!copyFile(HEKATE_INI_MOD_PATH, HEKATE_INI_PATH)) {
-        log_write("setHekateAutobootPayload: failed to copy modded ini\n");
+    if (!writeHekateAutobootIni(payload_path)) {
+        log_write("setHekateAutobootPayload: failed to write autoboot ini\n");
         return false;
     }
 
     fsdevCommitDevice("sdmc");
     log_write("setHekateAutobootPayload: hekate_ipl.ini updated successfully\n");
     return true;
+}
+
+bool findLockpickPayload(fs::FsPath& out) {
+    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR, out, true)) {
+        return true;
+    }
+
+    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR_LEGACY, out, true)) {
+        return true;
+    }
+
+    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR, out, false)) {
+        return true;
+    }
+
+    return findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR_LEGACY, out, false);
 }
 
 // Restore hekate_ipl.ini from backup
@@ -423,6 +457,33 @@ bool isPayloadSwapped() {
     return false;
 }
 
+Result requestForcedReboot() {
+    Result rc = spsmInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = spsmShutdown(true);
+        spsmExit();
+        if (R_SUCCEEDED(rc)) {
+            return rc;
+        }
+    }
+
+    rc = appletRequestToReboot();
+    if (R_SUCCEEDED(rc)) {
+        return rc;
+    }
+
+    rc = bpcInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = bpcRebootSystem();
+        bpcExit();
+        if (R_SUCCEEDED(rc)) {
+            return rc;
+        }
+    }
+
+    return rc;
+}
+
 // Swap payload.bin with HATS installer and reboot
 // This works on both Erista and Mariko since the system loads sd:\payload.bin
 bool rebootToPayload(const char* path) {
@@ -566,8 +627,7 @@ bool rebootToPayload(const char* path) {
     // Step 5: Reboot - system will load sd:\payload.bin (which is now HATS installer)
     log_write("rebootToPayload: HATS installer will restore hekate after installation\n");
 
-    spsmInitialize();
-    spsmShutdown(true);
+    requestForcedReboot();
 
     // Should not reach here
     return false;
