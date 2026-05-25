@@ -366,6 +366,127 @@ auto GetBuildIdFromInstalledNca(u64 title_id) -> std::string {
     return GetBuildIdFromInstalledNcaDetailed(title_id).build_id;
 }
 
+auto ReadBuildIdFromProgramContent(NcmContentStorage& cs, const NcmContentId& content_id, u64 title_id, const char* source) -> std::string {
+    fs::FsPath mount_path;
+    Result rc = devoptab::MountNcaNcm(&cs, &content_id, mount_path);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] %s: failed to mount Program NCA for %016lx: %x\n", source, title_id, rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(devoptab::UmountNeworkDevice(mount_path));
+
+    fs::FsStdio mounted_fs{true, mount_path};
+    fs::File file;
+    const char* opened_path = nullptr;
+    for (const auto* candidate_path : {"/main", "/exeFS/main"}) {
+        rc = mounted_fs.OpenFile(candidate_path, FsOpenMode_Read, &file);
+        if (R_SUCCEEDED(rc)) {
+            opened_path = candidate_path;
+            break;
+        }
+        log_write("[Cheats] %s: failed to open %s for %016lx: %x\n",
+                  source, candidate_path, title_id, rc);
+    }
+    if (!opened_path) {
+        LogMountedDirectoryEntries(mounted_fs, "/");
+        LogMountedDirectoryEntries(mounted_fs, "/exeFS");
+        return "";
+    }
+
+    u8 module_id[0x20]{};
+    u64 bytes_read{};
+    rc = file.Read(0x40, module_id, sizeof(module_id), FsReadOption_None, &bytes_read);
+    if (R_FAILED(rc) || bytes_read < 8) {
+        log_write("[Cheats] %s: failed to read ModuleId from %s for %016lx: %x (read=%llu)\n",
+                  source, opened_path, title_id, rc, bytes_read);
+        return "";
+    }
+
+    const auto build_id = NormalizeBuildId(BytesToHex(module_id, 8));
+    if (!IsValidBuildId(build_id)) {
+        log_write("[Cheats] %s: invalid Build ID for %016lx: %s\n", source, title_id, build_id.c_str());
+        return "";
+    }
+
+    log_write("[Cheats] %s: build ID = %s for title %016lx via %s\n",
+              source, build_id.c_str(), title_id, opened_path);
+    return build_id;
+}
+
+auto GetBuildIdFromGameCardNca(u64 title_id) -> std::string {
+    NcmContentMetaDatabase db{};
+    Result rc = ncmOpenContentMetaDatabase(&db, NcmStorageId_GameCard);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromGameCardNca: failed to open game card metadata DB for %016lx: %x\n", title_id, rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(ncmContentMetaDatabaseClose(&db));
+
+    NcmContentStorage cs{};
+    rc = ncmOpenContentStorage(&cs, NcmStorageId_GameCard);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromGameCardNca: failed to open game card content storage for %016lx: %x\n", title_id, rc);
+        return "";
+    }
+    ON_SCOPE_EXIT(ncmContentStorageClose(&cs));
+
+    std::vector<NcmContentMetaKey> keys(16);
+    s32 total = 0;
+    s32 written = 0;
+    rc = ncmContentMetaDatabaseList(&db, &total, &written, keys.data(), keys.size(),
+        NcmContentMetaType_Unknown, 0, 0, UINT64_MAX, NcmContentInstallType_Full);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] GetBuildIdFromGameCardNca: failed to list game card metadata for %016lx: %x\n", title_id, rc);
+        return "";
+    }
+
+    if (total > written && total > static_cast<s32>(keys.size())) {
+        keys.resize(total);
+        rc = ncmContentMetaDatabaseList(&db, &total, &written, keys.data(), keys.size(),
+            NcmContentMetaType_Unknown, 0, 0, UINT64_MAX, NcmContentInstallType_Full);
+        if (R_FAILED(rc)) {
+            log_write("[Cheats] GetBuildIdFromGameCardNca: failed to list all game card metadata for %016lx: %x\n", title_id, rc);
+            return "";
+        }
+    }
+    keys.resize(written);
+
+    std::sort(keys.begin(), keys.end(), [](const auto& lhs, const auto& rhs) {
+        if (lhs.type != rhs.type) {
+            return lhs.type == NcmContentMetaType_Patch;
+        }
+        return lhs.version > rhs.version;
+    });
+
+    for (const auto& key : keys) {
+        if (key.type != NcmContentMetaType_Application && key.type != NcmContentMetaType_Patch) {
+            continue;
+        }
+        if (GetBaseApplicationTitleId(ncm::GetAppId(key)) != title_id) {
+            continue;
+        }
+
+        log_write("[Cheats] GetBuildIdFromGameCardNca: candidate key id=%016lx type=%u version=%u\n",
+                  key.id, key.type, key.version);
+
+        NcmContentId content_id{};
+        rc = ncmContentMetaDatabaseGetContentIdByType(&db, &content_id, &key, NcmContentType_Program);
+        if (R_FAILED(rc)) {
+            log_write("[Cheats] GetBuildIdFromGameCardNca: failed to resolve Program content ID for %016lx key=%016lx: %x\n",
+                      title_id, key.id, rc);
+            continue;
+        }
+
+        if (auto build_id = ReadBuildIdFromProgramContent(cs, content_id, title_id, "GetBuildIdFromGameCardNca");
+            !build_id.empty()) {
+            return build_id;
+        }
+    }
+
+    log_write("[Cheats] GetBuildIdFromGameCardNca: no readable Program NCA for %016lx\n", title_id);
+    return "";
+}
+
 // Get Build ID from dmnt:cht service (when game is running/suspended)
 auto GetBuildIdFromDmnt(u64 title_id) -> std::string {
     Result rc = pmdmntInitialize();
@@ -623,6 +744,12 @@ auto LookupBuildIdForCheats(u64 title_id, bool allow_nso_fallback = true) -> Bui
     if (!has_prod_keys) {
         log_write("[Cheats] LookupBuildIdForCheats: /switch/prod.keys not found\n");
     } else {
+        result.build_id = GetBuildIdFromGameCardNca(title_id);
+        if (!result.build_id.empty()) {
+            result.source = "gamecard-nca";
+            return result;
+        }
+
         const auto installed_nca = GetBuildIdFromInstalledNcaDetailed(title_id);
         result.build_id = installed_nca.build_id;
         if (!result.build_id.empty()) {
@@ -1451,6 +1578,62 @@ struct CachedCheatMetadata {
     u64 scanned_at{};
 };
 
+void AppendGameCardGames(std::vector<GameCheatInfo>& games, std::unordered_set<u64>& seen_title_ids) {
+    NcmContentMetaDatabase db{};
+    Result rc = ncmOpenContentMetaDatabase(&db, NcmStorageId_GameCard);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] AppendGameCardGames: failed to open game card metadata DB: %x\n", rc);
+        return;
+    }
+    ON_SCOPE_EXIT(ncmContentMetaDatabaseClose(&db));
+
+    std::vector<NcmContentMetaKey> keys(16);
+    s32 total = 0;
+    s32 written = 0;
+    rc = ncmContentMetaDatabaseList(&db, &total, &written, keys.data(), keys.size(),
+        NcmContentMetaType_Unknown, 0, 0, UINT64_MAX, NcmContentInstallType_Full);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] AppendGameCardGames: failed to list game card metadata: %x\n", rc);
+        return;
+    }
+
+    if (total > written && total > static_cast<s32>(keys.size())) {
+        keys.resize(total);
+        rc = ncmContentMetaDatabaseList(&db, &total, &written, keys.data(), keys.size(),
+            NcmContentMetaType_Unknown, 0, 0, UINT64_MAX, NcmContentInstallType_Full);
+        if (R_FAILED(rc)) {
+            log_write("[Cheats] AppendGameCardGames: failed to list all game card metadata: %x\n", rc);
+            return;
+        }
+    }
+
+    keys.resize(written);
+    log_write("[Cheats] AppendGameCardGames: found %d game card metadata entries (%d written)\n", total, written);
+
+    for (const auto& key : keys) {
+        if (key.type != NcmContentMetaType_Application && key.type != NcmContentMetaType_Patch) {
+            continue;
+        }
+
+        const auto base_title_id = GetBaseApplicationTitleId(ncm::GetAppId(key));
+        if (base_title_id == 0 || !seen_title_ids.insert(base_title_id).second) {
+            continue;
+        }
+
+        GameCheatInfo info;
+        info.title_id = base_title_id;
+        info.version = GetTitleVersion(base_title_id);
+        info.name = GetTitleName(base_title_id);
+        if (info.name.empty()) {
+            info.name = std::format("Game {:016X}", base_title_id);
+        }
+
+        log_write("[Cheats] AppendGameCardGames: added inserted game card %016lX (%s) v%u\n",
+                  info.title_id, info.name.c_str(), info.version);
+        games.push_back(std::move(info));
+    }
+}
+
 auto EnumerateInstalledGames() -> std::vector<GameCheatInfo> {
     std::vector<GameCheatInfo> games;
 
@@ -1499,6 +1682,8 @@ auto EnumerateInstalledGames() -> std::vector<GameCheatInfo> {
 
         offset += record_count;
     }
+
+    AppendGameCardGames(games, seen_title_ids);
 
     return games;
 }
@@ -3943,6 +4128,8 @@ void CheatGameSelectMenu::ScanGames() {
 
         offset += record_count;
     }
+
+    AppendGameCardGames(m_games, seen_title_ids);
 
     // Exit ns service when done
     ns::Exit();
