@@ -4,6 +4,18 @@
 
 namespace sphaira::ui {
 
+namespace {
+constexpr float OPTION_BOX_W = 770.f;
+constexpr float OPTION_BOX_H = 295.f;
+constexpr float OPTION_BOX_BUTTON_Y = 220.f;
+constexpr float OPTION_BOX_MESSAGE_Y = 82.f;
+constexpr float OPTION_BOX_MESSAGE_PADDING = 30.f;
+constexpr float OPTION_BOX_MESSAGE_IMAGE_PADDING = 40.f;
+constexpr float OPTION_BOX_IMAGE_X = 40.f;
+constexpr float OPTION_BOX_IMAGE_Y = 40.f;
+constexpr float OPTION_BOX_IMAGE_SIZE = 150.f;
+} // namespace
+
 OptionBoxEntry::OptionBoxEntry(const std::string& text, const Vec4& pos)
 : m_text{text} {
     m_pos = pos;
@@ -29,14 +41,14 @@ OptionBox::OptionBox(const std::string& message, const Option& a, const Callback
 , m_image{image}
 , m_own_image{own_image} {
 
-    m_pos.w = 770.f;
-    m_pos.h = 295.f;
+    m_pos.w = OPTION_BOX_W;
+    m_pos.h = OPTION_BOX_H;
     m_pos.x = (SCREEN_WIDTH / 2.f) - (m_pos.w / 2.f);
     m_pos.y = (SCREEN_HEIGHT / 2.f) - (m_pos.h / 2.f);
 
     auto box = m_pos;
-    box.y += 220.f;
-    box.h -= 220.f;
+    box.y += OPTION_BOX_BUTTON_Y;
+    box.h -= OPTION_BOX_BUTTON_Y;
     m_entries.emplace_back(a, box);
 
     Setup(0);
@@ -53,15 +65,15 @@ OptionBox::OptionBox(const std::string& message, const Option& a, const Option& 
 , m_image{image}
 , m_own_image{own_image} {
 
-    m_pos.w = 770.f;
-    m_pos.h = 295.f;
+    m_pos.w = OPTION_BOX_W;
+    m_pos.h = OPTION_BOX_H;
     m_pos.x = (SCREEN_WIDTH / 2.f) - (m_pos.w / 2.f);
     m_pos.y = (SCREEN_HEIGHT / 2.f) - (m_pos.h / 2.f);
 
     auto box = m_pos;
     box.w /= 2.f;
-    box.y += 220.f;
-    box.h -= 220.f;
+    box.y += OPTION_BOX_BUTTON_Y;
+    box.h -= OPTION_BOX_BUTTON_Y;
     m_entries.emplace_back(a, box);
     box.x += box.w;
     m_entries.emplace_back(b, box);
@@ -98,17 +110,15 @@ auto OptionBox::Draw(NVGcontext* vg, Theme* theme) -> void {
     nvgTextLineHeight(vg, 1.5);
     if (m_image) {
         Vec4 image{m_pos};
-        image.x += 40;
-        image.y += 40;
-        image.w = 150;
-        image.h = 150;
+        image.x += OPTION_BOX_IMAGE_X;
+        image.y += OPTION_BOX_IMAGE_Y;
+        image.w = OPTION_BOX_IMAGE_SIZE;
+        image.h = OPTION_BOX_IMAGE_SIZE;
 
-        const float padding = 40;
         gfx::drawImage(vg, image, m_image, 5);
-        gfx::drawTextBox(vg, image.x + image.w + padding, m_pos.y + 110.f, 22.f, m_pos.w - (image.x - m_pos.x) - image.w - padding*2, theme->GetColour(ThemeEntryID_TEXT), m_message.c_str(), NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
+        gfx::drawTextBox(vg, image.x + image.w + OPTION_BOX_MESSAGE_IMAGE_PADDING, m_pos.y + OPTION_BOX_MESSAGE_Y, 22.f, m_pos.w - (image.x - m_pos.x) - image.w - OPTION_BOX_MESSAGE_IMAGE_PADDING * 2, theme->GetColour(ThemeEntryID_TEXT), m_message.c_str(), NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
     } else {
-        const float padding = 30;
-        gfx::drawTextBox(vg, m_pos.x + padding, m_pos.y + 110.f, 24.f, m_pos.w - padding*2, theme->GetColour(ThemeEntryID_TEXT), m_message.c_str(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        gfx::drawTextBox(vg, m_pos.x + OPTION_BOX_MESSAGE_PADDING, m_pos.y + OPTION_BOX_MESSAGE_Y, 24.f, m_pos.w - OPTION_BOX_MESSAGE_PADDING * 2, theme->GetColour(ThemeEntryID_TEXT), m_message.c_str(), NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
     }
     nvgRestore(vg);
 
@@ -132,7 +142,7 @@ auto OptionBox::OnFocusLost() noexcept -> void {
 auto OptionBox::Setup(s64 index) -> void {
     m_index = std::min<s64>(m_entries.size() - 1, index);
     m_entries[m_index].Selected(true);
-    m_spacer_line = Vec4{m_pos.x, m_pos.y + 220.f - 2.f, m_pos.w, 2.f};
+    m_spacer_line = Vec4{m_pos.x, m_pos.y + OPTION_BOX_BUTTON_Y - 2.f, m_pos.w, 2.f};
 
     SetActions(
         std::make_pair(Button::LEFT, Action{[this](){

@@ -741,6 +741,7 @@ auto LookupBuildIdForCheats(u64 title_id, bool allow_nso_fallback = true) -> Bui
     }
 
     const bool has_prod_keys = HasProdKeys();
+    bool installed_content_missing = false;
     if (!has_prod_keys) {
         log_write("[Cheats] LookupBuildIdForCheats: /switch/prod.keys not found\n");
     } else {
@@ -759,6 +760,7 @@ auto LookupBuildIdForCheats(u64 title_id, bool allow_nso_fallback = true) -> Bui
 
         if (installed_nca.failure_reason == InstalledNcaFailureReason::ContentMissing) {
             log_write("[Cheats] LookupBuildIdForCheats: installed Program NCA content missing for %016lx\n", title_id);
+            installed_content_missing = true;
         }
     }
 
@@ -781,9 +783,9 @@ auto LookupBuildIdForCheats(u64 title_id, bool allow_nso_fallback = true) -> Bui
         return result;
     }
 
-    // If we're in application mode and both installed-content probes failed,
-    // the title entry is present but the actual game data is very likely gone.
-    if (allow_nso_fallback && App::IsApplication()) {
+    // A lingering title record without readable Program content means the game
+    // itself is not present, even if ns still lists application metadata.
+    if (installed_content_missing) {
         result.failure_reason = BuildIdFailureReason::GameNotFound;
         return result;
     }
@@ -797,7 +799,7 @@ auto GetBuildIdFailureMessage(BuildIdFailureReason reason) -> std::string {
         case BuildIdFailureReason::ProdKeysMissing:
             return "prod.keys not found";
         case BuildIdFailureReason::GameNotFound:
-            return "No game found";
+            return "Game Not Found";
         case BuildIdFailureReason::ExactBuildIdUnavailable:
             return "Unable to determine the exact Build ID.\n\n"
                    "For reliable cheat matching, launch the game first\n"
@@ -839,14 +841,14 @@ void ShowProdKeysMissingDialog() {
     fs::FsPath lockpick_payload;
     if (!utils::findLockpickPayload(lockpick_payload)) {
         App::Push<OptionBox>(
-            "prod.keys not found.\n\nPlace Lockpick_RCM payload at:\n/bootloader/payloads/lockpick_rcm_pro.bin"_i18n,
+            "prod.keys not found.\nPlace Lockpick_RCM in /bootloader/payloads"_i18n,
             "OK"_i18n
         );
         return;
     }
 
     App::Push<OptionBox>(
-        "prod.keys not found.\n\nLaunch Lockpick_RCM payload now?"_i18n,
+        "prod.keys not found.\nLaunch Lockpick_RCM payload now?"_i18n,
         "Cancel"_i18n,
         "Launch"_i18n,
         1,
@@ -1731,9 +1733,11 @@ auto LoadCheatMetadataCacheUnlocked() -> std::unordered_map<u64, CachedCheatMeta
 
         if (auto* val = yyjson_obj_get(item, "title_id"); val && yyjson_is_str(val)) {
             const auto* title_id_str = yyjson_get_str(val);
-            if (!title_id_str || std::sscanf(title_id_str, "%016llx", reinterpret_cast<unsigned long long*>(&entry.title_id)) != 1) {
+            unsigned long long title_id = 0;
+            if (!title_id_str || std::sscanf(title_id_str, "%016llx", &title_id) != 1) {
                 continue;
             }
+            entry.title_id = title_id;
         } else {
             continue;
         }
@@ -1794,11 +1798,12 @@ auto SaveCheatMetadataCacheUnlocked(const std::unordered_map<u64, CachedCheatMet
     for (const auto* entry : sorted_entries) {
         auto* obj = yyjson_mut_obj(doc);
         yyjson_mut_arr_add_val(titles, obj);
-        yyjson_mut_obj_add_str(doc, obj, "title_id", FormatTitleId(entry->title_id).c_str());
-        yyjson_mut_obj_add_str(doc, obj, "name", entry->name.c_str());
+        const auto title_id = FormatTitleId(entry->title_id);
+        yyjson_mut_obj_add_strncpy(doc, obj, "title_id", title_id.c_str(), title_id.size());
+        yyjson_mut_obj_add_strncpy(doc, obj, "name", entry->name.c_str(), entry->name.size());
         yyjson_mut_obj_add_uint(doc, obj, "version", entry->version);
-        yyjson_mut_obj_add_str(doc, obj, "build_id", entry->build_id.c_str());
-        yyjson_mut_obj_add_str(doc, obj, "source", entry->source.c_str());
+        yyjson_mut_obj_add_strncpy(doc, obj, "build_id", entry->build_id.c_str(), entry->build_id.size());
+        yyjson_mut_obj_add_strncpy(doc, obj, "source", entry->source.c_str(), entry->source.size());
         yyjson_mut_obj_add_uint(doc, obj, "scanned_at", entry->scanned_at);
     }
 
@@ -1809,7 +1814,13 @@ auto SaveCheatMetadataCacheUnlocked(const std::unordered_map<u64, CachedCheatMet
     ON_SCOPE_EXIT(free(json));
 
     const auto json_data = std::span<const u8>(reinterpret_cast<const u8*>(json), std::strlen(json));
-    return R_SUCCEEDED(fs.write_entire_file(CHEAT_METADATA_CACHE_PATH, json_data));
+    const auto rc = fs.write_entire_file(CHEAT_METADATA_CACHE_PATH, json_data);
+    if (R_FAILED(rc)) {
+        log_write("[Cheats] Failed to write cheat metadata cache: %x\n", rc);
+        return false;
+    }
+
+    return true;
 }
 
 auto GetCachedCheatMetadata(u64 title_id) -> std::optional<CachedCheatMetadata> {
@@ -3586,7 +3597,7 @@ void CheatContentMenu::Draw(NVGcontext* vg, Theme* theme) {
         gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f, 24.f,
             NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
             theme->GetColour(ThemeEntryID_TEXT_INFO),
-            "No cheats found");
+            "Cheats Not Found");
         return;
     }
 
@@ -4315,7 +4326,7 @@ void CheatDownloadMenu::Draw(NVGcontext* vg, Theme* theme) {
         gfx::drawTextArgs(vg, SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f, 24.f,
             NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
             theme->GetColour(ThemeEntryID_TEXT_INFO),
-            "No cheats found");
+            "Cheats Not Found");
         return;
     }
 
@@ -4515,12 +4526,6 @@ void CheatDownloadMenu::FetchCheats() {
     // For CheatSlips, only trust exact Build IDs from the live process,
     // the installed Program NCA, or the installed title's main NSO.
     // Do not guess from version maps.
-    if (const auto cached_build_id = GetCachedBuildIdForTitle(m_game); !cached_build_id.empty()) {
-        m_game.build_id = cached_build_id;
-        FetchCheatsFromApi(m_game.build_id);
-        return;
-    }
-
     const auto lookup = LookupBuildIdForCheats(m_game.title_id);
     if (!lookup.build_id.empty()) {
         m_game.build_id = lookup.build_id;
@@ -4549,12 +4554,6 @@ void CheatDownloadMenu::FetchCheats() {
 void CheatDownloadMenu::FetchCheatsFromNxDb() {
     log_write("[Cheats] Fetching cheats from nx-cheats-db (GitHub)\n");
     m_should_close = false;
-
-    if (const auto cached_build_id = GetCachedBuildIdForTitle(m_game); !cached_build_id.empty()) {
-        m_game.build_id = cached_build_id;
-        FetchNxDbCheatsFromGithub(m_game.build_id);
-        return;
-    }
 
     const auto lookup = LookupBuildIdForCheats(m_game.title_id);
     if (!lookup.build_id.empty()) {
@@ -4602,7 +4601,7 @@ void CheatDownloadMenu::FetchCheatsFileAndExtractBuildIds() {
                 m_loaded = true;
                 m_error_message.clear();
                 log_write("[Cheats] nx-cheats-db cheats file not found, HTTP code: %ld\n", result.code);
-                App::Notify("No cheats found");
+                App::Notify("Cheats Not Found");
                 SetPop();
                 return true;
             }
@@ -4615,7 +4614,7 @@ void CheatDownloadMenu::FetchCheatsFileAndExtractBuildIds() {
                 m_loading = false;
                 m_loaded = true;
                 m_error_message.clear();
-                App::Notify("No cheats found");
+                App::Notify("Cheats Not Found");
                 SetPop();
                 return true;
             }
@@ -4631,7 +4630,7 @@ void CheatDownloadMenu::FetchCheatsFileAndExtractBuildIds() {
             m_loaded = true;
             log_write("[Cheats] Multiple candidate Build IDs found, refusing to guess\n");
             m_error_message.clear();
-            App::Notify("No cheats found");
+            App::Notify("Cheats Not Found");
             SetPop();
             return true;
         }}
@@ -4658,8 +4657,8 @@ void CheatDownloadMenu::FetchNxDbCheatsFromGithub(const std::string& build_id) {
             if (result.code == 404) {
                 m_cheats.clear();
                 m_error_message.clear();
-                log_write("[Cheats] Game not found in nx-cheats-db (HTTP 404)\n");
-                App::Notify("No cheats found");
+                log_write("[Cheats] Cheats not found in nx-cheats-db (HTTP 404)\n");
+                App::Notify("Cheats Not Found");
                 SetPop();
                 return true;
             }
@@ -4695,7 +4694,7 @@ void CheatDownloadMenu::FetchNxDbCheatsFromGithub(const std::string& build_id) {
             if (m_cheats.empty()) {
                 log_write("[Cheats] Build ID %s not found in cheats file\n", build_id.c_str());
                 m_error_message.clear();
-                App::Notify("No cheats found"_i18n);
+                App::Notify("Cheats Not Found"_i18n);
                 SetPop();
             } else {
                 m_index = 0; // Set to first item when cheats are found
@@ -4758,13 +4757,13 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
 
                 // Check for HTTP 404 (Not Found) - immediately notify user
                 if (result.code == 404) {
-                    log_write("[Cheats] DEBUG: HTTP 404 detected (AUTH) - Game not found on CheatSlips\n");
+                    log_write("[Cheats] DEBUG: HTTP 404 detected (AUTH) - cheats not found on CheatSlips\n");
                     m_cheats.clear();
                     m_index = -1;
                     m_error_message.clear();
-                    log_write("[Cheats] Game not found on CheatSlips (HTTP 404)\n");
+                    log_write("[Cheats] Cheats not found on CheatSlips (HTTP 404)\n");
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (404 case)\n");
-                    App::Notify("No cheats found on CheatSlips for this game");
+                    App::Notify("Cheats Not Found");
                     m_should_close = true;
                     log_write("[Cheats] DEBUG: m_should_close set to: %d\n", m_should_close);
                     return true;
@@ -4798,7 +4797,7 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
                     m_error_message.clear();
                     log_write("[Cheats] Empty response from CheatSlips\n");
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (empty response case)\n");
-                    App::Notify("No cheats found on CheatSlips for this game");
+                    App::Notify("Cheats Not Found");
                     m_should_close = true;
                     log_write("[Cheats] DEBUG: m_should_close set to: %d\n", m_should_close);
                     return true;
@@ -4817,7 +4816,7 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
                         App::Notify("Daily quota exceeded - Add token for higher limits");
                     } else {
                         m_error_message.clear();
-                        App::Notify("No cheats found on CheatSlips for this game");
+                        App::Notify("Cheats Not Found");
                     }
                     log_write("[Cheats] No cheats found, error: %s\n", m_error_message.c_str());
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (no cheats case)\n");
@@ -4852,13 +4851,13 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
 
                 // Check for HTTP 404 (Not Found) - immediately notify user
                 if (result.code == 404) {
-                    log_write("[Cheats] DEBUG: HTTP 404 detected (NO-AUTH) - Game not found on CheatSlips\n");
+                    log_write("[Cheats] DEBUG: HTTP 404 detected (NO-AUTH) - cheats not found on CheatSlips\n");
                     m_cheats.clear();
                     m_index = -1;
                     m_error_message.clear();
-                    log_write("[Cheats] Game not found on CheatSlips (HTTP 404)\n");
+                    log_write("[Cheats] Cheats not found on CheatSlips (HTTP 404)\n");
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (404 case)\n");
-                    App::Notify("No cheats found on CheatSlips for this game");
+                    App::Notify("Cheats Not Found");
                     m_should_close = true;
                     log_write("[Cheats] DEBUG: m_should_close set to: %d\n", m_should_close);
                     return true;
@@ -4892,7 +4891,7 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
                     m_error_message.clear();
                     log_write("[Cheats] Empty response from CheatSlips\n");
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (empty response case)\n");
-                    App::Notify("No cheats found on CheatSlips for this game");
+                    App::Notify("Cheats Not Found");
                     m_should_close = true;
                     log_write("[Cheats] DEBUG: m_should_close set to: %d\n", m_should_close);
                     return true;
@@ -4911,7 +4910,7 @@ void CheatDownloadMenu::FetchCheatsFromApi(const std::string& build_id) {
                         App::Notify("Daily quota exceeded - Add token for higher limits");
                     } else {
                         m_error_message.clear();
-                        App::Notify("No cheats found on CheatSlips for this game");
+                        App::Notify("Cheats Not Found");
                     }
                     log_write("[Cheats] No cheats found, error: %s\n", m_error_message.c_str());
                     log_write("[Cheats] DEBUG: Setting m_should_close = true (no cheats case)\n");
