@@ -71,7 +71,6 @@ namespace {
     constexpr const char* HEKATE_INI_PATH = "/bootloader/hekate_ipl.ini";
     constexpr const char* HEKATE_INI_BAK_PATH = "/bootloader/hekate_ipl.ini.bak";
     constexpr const char* LOCKPICK_PAYLOAD_DIR = "/bootloader/payloads";
-    constexpr const char* LOCKPICK_PAYLOAD_DIR_LEGACY = "/bootloader/payload";
 
     bool backupHekateIni() {
         FILE* f_bak_check = fopen(HEKATE_INI_BAK_PATH, "rb");
@@ -156,10 +155,10 @@ namespace {
 
     bool isLockpickPayloadName(const std::string& name) {
         const auto lower = toLower(name);
-        return lower.starts_with("lockpick_rcm") && lower.ends_with(".bin");
+        return lower == "lockpick_rcm_pro.bin" || lower == "lockpick_rcm.bin";
     }
 
-    bool findLockpickPayloadInDir(const char* dir_path, fs::FsPath& out, bool exact_only) {
+    bool findLockpickPayloadInDir(const char* dir_path, fs::FsPath& out) {
         fs::FsNativeSd fs;
         fs::Dir dir;
         if (R_FAILED(fs.OpenDirectory(dir_path, FsDirOpenMode_ReadFiles | FsDirOpenMode_NoFileSize, &dir))) {
@@ -181,10 +180,6 @@ namespace {
                 out = fs::AppendPath(dir_path, entry.name);
                 return true;
             }
-        }
-
-        if (exact_only) {
-            return false;
         }
 
         for (const auto& entry : entries) {
@@ -220,19 +215,7 @@ bool setHekateAutobootPayload(const char* payload_path) {
 }
 
 bool findLockpickPayload(fs::FsPath& out) {
-    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR, out, true)) {
-        return true;
-    }
-
-    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR_LEGACY, out, true)) {
-        return true;
-    }
-
-    if (findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR, out, false)) {
-        return true;
-    }
-
-    return findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR_LEGACY, out, false);
+    return findLockpickPayloadInDir(LOCKPICK_PAYLOAD_DIR, out);
 }
 
 // Restore hekate_ipl.ini from backup

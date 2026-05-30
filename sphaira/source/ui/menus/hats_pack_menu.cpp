@@ -93,6 +93,36 @@ void from_json(const fs::FsPath& path, std::vector<ReleaseEntry>& entries) {
 
 constexpr const char* BACKUP_PATH = "/sdbackup";
 
+auto HasCachedZip() -> bool {
+    fs::FsNativeSd fs;
+    if (R_FAILED(fs.GetFsOpenResult()) || !fs.DirExists(CACHE_PATH)) {
+        return false;
+    }
+
+    fs::Dir dir;
+    if (R_FAILED(fs.OpenDirectory(CACHE_PATH, FsDirOpenMode_ReadFiles, &dir))) {
+        return false;
+    }
+
+    std::vector<FsDirectoryEntry> entries;
+    if (R_FAILED(dir.ReadAll(entries))) {
+        return false;
+    }
+
+    for (const auto& entry : entries) {
+        if (entry.type != FsDirEntryType_File) {
+            continue;
+        }
+
+        const std::string name = entry.name;
+        if (name.size() > 4 && !strcasecmp(name.c_str() + name.size() - 4, ".zip")) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 auto CopyDirectoryRecursive(ProgressBox* pbox, fs::FsNativeSd& fs, const fs::FsPath& src, const fs::FsPath& dst) -> Result {
     // Create destination directory
     R_TRY(fs.CreateDirectory(dst));
@@ -528,7 +558,13 @@ void PackMenu::FetchReleases() {
             m_loaded = true;
 
             if (!result.success) {
-                m_error_message = "Failed to fetch releases. Check your internet connection.";
+                if (HasCachedZip()) {
+                    m_error_message = "Failed to fetch releases. Opening cached downloads.";
+                    App::Notify("Offline: opening cached HATS zips"_i18n);
+                    ShowCacheManager();
+                } else {
+                    m_error_message = "Failed to fetch releases. Check your internet connection.";
+                }
                 hats_log_write("hats: failed to fetch releases\n");
                 return false;
             }
@@ -902,7 +938,7 @@ void CacheManagerMenu::ScanCachedZips() {
     for (const auto& entry : entries) {
         if (entry.type == FsDirEntryType_File) {
             std::string name = entry.name;
-            if (name.size() > 4 && name.substr(name.size() - 4) == ".zip") {
+            if (name.size() > 4 && !strcasecmp(name.c_str() + name.size() - 4, ".zip")) {
                 // Use file_size from directory entry (cast to u64)
                 u64 file_size = static_cast<u64>(entry.file_size);
                 CachedZipEntry cached_entry;
