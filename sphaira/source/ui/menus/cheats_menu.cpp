@@ -64,6 +64,7 @@ constexpr const char* NX_DB_VERSIONS_URL = "https://raw.githubusercontent.com/st
 constexpr const char* AIO_TOKEN_PATH = "/config/aio-switch-updater/token.json";
 constexpr const char* CHEAT_METADATA_CACHE_PATH = "/config/hats-tools/cheat-metadata.json";
 constexpr u32 CHEAT_METADATA_CACHE_VERSION = 1;
+constexpr size_t ATMOSPHERE_MAX_CHEATS_PER_FILE = 128;
 
 // Number of titles to fetch per chunk (like original sphaira)
 constexpr s32 ENTRY_CHUNK_COUNT = 1000;
@@ -2206,7 +2207,7 @@ auto IsHexCodeLine(const std::string& line) -> bool {
         count++;
     }
 
-    return count >= 2 && count <= 4;
+    return count >= 1 && count <= 4;
 }
 
 auto NormalizeHexCodeLine(const std::string& line) -> std::string {
@@ -2228,6 +2229,45 @@ auto NormalizeHexCodeLine(const std::string& line) -> std::string {
     }
 
     return out.str();
+}
+
+auto SanitizeCheatContentForAtmosphere(const std::string& content) -> std::string {
+    std::istringstream stream(content);
+    std::ostringstream sanitized;
+    std::string line;
+
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) {
+            line.pop_back();
+        }
+
+        std::string trimmed = line;
+        trimmed.erase(0, trimmed.find_first_not_of(" \t"));
+
+        if (trimmed.empty()) {
+            sanitized << '\n';
+            continue;
+        }
+
+        if (trimmed.rfind("//", 0) == 0) {
+            continue;
+        }
+
+        if (IsCheatHeaderLine(trimmed)) {
+            sanitized << trimmed << '\n';
+            continue;
+        }
+
+        if (IsHexCodeLine(trimmed)) {
+            sanitized << NormalizeHexCodeLine(trimmed) << '\n';
+        }
+    }
+
+    return sanitized.str();
 }
 
 auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -> bool {
@@ -2274,8 +2314,12 @@ auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -
             }
             found_cheat_header = true;
             line = trimmed;
+        } else if (trimmed.rfind("//", 0) == 0) {
+            continue;
         } else if (IsHexCodeLine(trimmed)) {
             line = NormalizeHexCodeLine(trimmed);
+        } else {
+            continue;
         }
 
         sanitized << line << '\n';
@@ -2456,6 +2500,7 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
 
     // Parse existing file to get already saved cheats
     std::set<std::string> existing_cheat_names;
+    size_t existing_cheat_count = 0;
     if (fs.FileExists(file_path)) {
         std::vector<u8> existing_data;
         if (R_SUCCEEDED(fs::read_entire_file(&fs, file_path, existing_data))) {
@@ -2471,14 +2516,16 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
                 // Check for cheat title bracket format [Title]
                 if (!line.empty() && line[0] == '[' && line.back() == ']') {
                     std::string name = line.substr(1, line.length() - 2);
-                    existing_cheat_names.insert(name);
+                    if (existing_cheat_names.insert(name).second) {
+                        existing_cheat_count++;
+                    }
                 }
             }
             log_write("[Cheats] Found %zu existing cheats in file\n", existing_cheat_names.size());
         }
     }
 
-    // Build cheat file content with source comments
+    // Build Atmosphere-safe cheat file content.
     std::string content;
 
     // Group cheats by source
@@ -2488,7 +2535,11 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
         cheats_by_source[cheat.source].push_back(&cheat);
     }
 
-    // Add cheats with source markers at the END (to preserve source info when reading back)
+    // Atmosphere's standard cheat tooling is limited to 128 cheats per file.
+    size_t total_cheat_count = existing_cheat_count;
+    size_t added_count = 0;
+    size_t duplicate_count = 0;
+    size_t limit_skipped_count = 0;
     for (const auto& [source, source_cheats] : cheats_by_source) {
         // Only process if we have cheats from this source
         if (source_cheats.empty()) continue;
@@ -2498,6 +2549,14 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
             // Skip if this cheat already exists (by name)
             if (existing_cheat_names.count(cheat->name)) {
                 log_write("[Cheats] Skipping duplicate cheat: %s\n", cheat->name.c_str());
+                duplicate_count++;
+                continue;
+            }
+
+            if (total_cheat_count >= ATMOSPHERE_MAX_CHEATS_PER_FILE) {
+                log_write("[Cheats] Skipping cheat due to Atmosphere limit (%zu): %s\n",
+                    ATMOSPHERE_MAX_CHEATS_PER_FILE, cheat->name.c_str());
+                limit_skipped_count++;
                 continue;
             }
 
@@ -2530,44 +2589,23 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
                 }
             }
 
-            content += content_to_write;
+            content += SanitizeCheatContentForAtmosphere(content_to_write);
             existing_cheat_names.insert(cheat->name); // Mark as added
+            total_cheat_count++;
+            added_count++;
         }
 
         content += "\n";
     }
 
-    // Add source footer comment to preserve source information when reading back
-    // This is placed at the very end so it doesn't interfere with cheat parsing
-    if (!content.empty()) {
-        const char* source_footer = nullptr;
-        // Use the first source (should typically be one source per download)
-        for (const auto& [source, source_cheats] : cheats_by_source) {
-            if (!source_cheats.empty()) {
-                switch (source) {
-                    case CheatSource::Cheatslips:
-                        source_footer = "\n// source: CheatSlips\n";
-                        break;
-                    case CheatSource::NxDb:
-                        source_footer = "\n// source: nx-cheats-db\n";
-                        break;
-                    case CheatSource::Gbatemp:
-                        source_footer = "\n// source: GBATemp\n";
-                        break;
-                }
-                break; // Use first source found
-            }
-        }
-
-        if (source_footer) {
-            content += source_footer;
-        }
-    }
-
     // If no new cheats to add (all were duplicates)
     if (content.empty()) {
         log_write("[Cheats] No new cheats to add (all duplicates)\n");
-        App::Notify("All cheats already exist!");
+        if (limit_skipped_count) {
+            App::Notify("Cheat file already has 128 entries");
+        } else {
+            App::Notify("All cheats already exist!");
+        }
         return 0;
     }
 
@@ -2580,7 +2618,8 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
         if (f) {
             fwrite(content.data(), 1, content.size(), f);
             fclose(f);
-            log_write("[Cheats] Appended %zu cheats to %s\n", cheats.size(), file_path.s);
+            log_write("[Cheats] Appended %zu cheats to %s (%zu duplicates, %zu limit-skipped)\n",
+                added_count, file_path.s, duplicate_count, limit_skipped_count);
         } else {
             log_write("[Cheats] Failed to open file for appending: %s\n", file_path.s);
             return 1;
@@ -2591,7 +2630,12 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
             log_write("[Cheats] Failed to write cheat file %s\n", file_path.s);
             return 1;
         }
-        log_write("[Cheats] Wrote %zu cheats to %s\n", cheats.size(), file_path.s);
+        log_write("[Cheats] Wrote %zu cheats to %s (%zu duplicates, %zu limit-skipped)\n",
+            added_count, file_path.s, duplicate_count, limit_skipped_count);
+    }
+
+    if (limit_skipped_count) {
+        App::Notify("Installed first 128 cheats; skipped " + std::to_string(limit_skipped_count));
     }
 
     return 0;
@@ -4958,10 +5002,15 @@ void CheatDownloadMenu::DownloadCheats() {
         return;
     }
 
+    auto prompt = "Download " + std::to_string(selected_count) + " cheat(s)?";
+    if (selected_count > ATMOSPHERE_MAX_CHEATS_PER_FILE) {
+        prompt += "\n\nAtmosphere/Edizon supports 128 cheats per file.\nOnly the first 128 new cheats will be installed.";
+    }
+
     App::Push<OptionBox>(
-        "Download " + std::to_string(selected_count) + " cheat(s)?",
+        prompt,
         "Cancel"_i18n, "Download", 1,
-        [this](auto op_index) {
+        [this, selected_count](auto op_index) {
             if (!op_index || *op_index != 1) {
                 return;
             }
@@ -4978,14 +5027,13 @@ void CheatDownloadMenu::DownloadCheats() {
 
                     return WriteCheatFile(m_game.title_id, m_game.build_id, selected);
                 },
-                [this](Result rc) {
+                [this, selected_count](Result rc) {
                     if (R_SUCCEEDED(rc)) {
-                        // Count actually downloaded cheats
-                        size_t count = 0;
-                        for (const auto& cheat : m_cheats) {
-                            if (cheat.selected) count++;
+                        if (selected_count > ATMOSPHERE_MAX_CHEATS_PER_FILE) {
+                            App::Notify("Cheats installed up to the 128-entry limit");
+                        } else {
+                            App::Notify("Cheats installed for " + m_game.name);
                         }
-                        App::Notify("Downloaded " + std::to_string(count) + " cheat(s) for " + m_game.name);
                         SetPop();
                     } else {
                         App::Push<ErrorBox>(rc, "Failed to download cheats");
