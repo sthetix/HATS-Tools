@@ -58,8 +58,7 @@ auto GetStdio(bool write) -> StdioEntries {
 #endif // ENABLE_LIBUSBDVD
 
 #ifdef ENABLE_LIBUSBHSFS
-    // USB HDD support is disabled for HATS Tools
-    if (false) {
+    if (!App::GetHddEnable()) {
         log_write("[USBHSFS] not enabled\n");
         return out;
     }
@@ -85,7 +84,12 @@ auto GetStdio(bool write) -> StdioEntries {
             flags |= FsEntryFlag::FsEntryFlag_ReadOnly;
         }
 
-        out.emplace_back(e.name, display_name, flags);
+        fs::FsPath mount = e.name;
+        if (mount.ends_with(":")) {
+            mount += '/';
+        }
+
+        out.emplace_back(mount.toString(), display_name, flags);
         log_write("\t[USBHSFS] %s name: %s serial: %s man: %s\n", e.name, e.product_name, e.serial_number, e.manufacturer);
     }
 #endif // ENABLE_LIBUSBHSFS

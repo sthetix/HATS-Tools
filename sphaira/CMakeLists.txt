@@ -5,7 +5,7 @@ option(ENABLE_NVJPG "" OFF)
 option(ENABLE_NSZ "enables exporting to nsz" ON)
 
 # lib options.
-option(ENABLE_LIBUSBHSFS "enables FAT/exFAT hdd mounting" OFF)
+option(ENABLE_LIBUSBHSFS "enables FAT/exFAT/NTFS/EXT hdd mounting" OFF)
 option(ENABLE_LIBUSBDVD "enables cd/dvd/iso/cue mounting" OFF)
 option(ENABLE_FTPSRV "enables FTP server support" OFF)
 option(ENABLE_LIBHAZE "enables MTP server support" OFF)
@@ -32,7 +32,7 @@ option(ENABLE_DEVOPTAB_SFTP "" OFF)
 # MAJOR: incompatible changes
 # MINOR: new features (backwards compatible)
 # PATCH: bug fixes (backwards compatible)
-set(HATS_TOOLS_VERSION "1.6.1")
+set(HATS_TOOLS_VERSION "1.6.2")
 set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
 project(hats-tools
@@ -304,8 +304,8 @@ if (ENABLE_NSZ)
 endif()
 
 if (ENABLE_LIBUSBHSFS)
-    # enable this if you want ntfs and ext4 support, at the cost of a huge final binary size.
-    set(USBHSFS_GPL OFF)
+    # Enable NTFS and EXT support to match CyberFoil's USB HDD behavior.
+    set(USBHSFS_GPL ON)
     set(USBHSFS_SXOS_DISABLE ON)
 
     FetchContent_Declare(libusbhsfs

@@ -21,7 +21,8 @@
                 "LTO": true,
 
                 "ENABLE_FTPSRV": true,
-                "ENABLE_LIBHAZE": true
+                "ENABLE_LIBHAZE": true,
+                "ENABLE_LIBUSBHSFS": true
             }
         },
         {

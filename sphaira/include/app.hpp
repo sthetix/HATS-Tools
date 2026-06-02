@@ -86,6 +86,8 @@ public:
     static auto GetLogEnable() -> bool;
     static auto GetMtpEnable() -> bool;
     static auto GetFtpEnable() -> bool;
+    static auto GetHddEnable() -> bool;
+    static auto GetWriteProtect() -> bool;
     static auto GetSkipBackupWarning() -> bool;
     static auto GetBackupEnabled() -> bool;
     static auto GetKeepZipsEnabled() -> bool;
@@ -102,6 +104,8 @@ public:
     static void SetLogEnable(bool enable);
     static void SetMtpEnable(bool enable);
     static void SetFtpEnable(bool enable);
+    static void SetHddEnable(bool enable);
+    static void SetWriteProtect(bool enable);
     static void SetSkipBackupWarning(bool enable);
     static void SetBackupEnabled(bool enable);
     static void SetKeepZipsEnabled(bool enable);
@@ -121,6 +125,7 @@ public:
     static void DisplayDumpOptions(bool left_side = true);
     static void DisplayFtpOptions(bool left_side = true);
     static void DisplayMtpOptions(bool left_side = true);
+    static void DisplayHddOptions(bool left_side = true);
 
     static auto GetInstallEnable() -> bool;
     static void ShowEnableInstallPrompt();
@@ -279,6 +284,8 @@ public:
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", false};
     option::OptionBool m_mtp_enabled{INI_SECTION, "mtp_enabled", false};
     option::OptionBool m_ftp_enabled{INI_SECTION, "ftp_enabled", false};
+    option::OptionBool m_hdd_enabled{INI_SECTION, "hdd_enabled", true};
+    option::OptionBool m_hdd_write_protect{INI_SECTION, "hdd_write_protect", false};
     option::OptionBool m_skip_backup_warning{INI_SECTION, "skip_backup_warning", false};
     option::OptionBool m_backup_enabled{INI_SECTION, "backup_enabled", true};
     option::OptionBool m_keep_zips{INI_SECTION, "keep_zips", false};

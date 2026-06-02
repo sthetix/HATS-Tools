@@ -1,7 +1,8 @@
 #include "ui/menus/hats_network_menu.hpp"
 
+#include "location.hpp"
 #include "ui/menus/ghdl.hpp"
-#include "ui/menus/usb_menu.hpp"
+#include "ui/menus/filebrowser.hpp"
 #include "ui/nvg_util.hpp"
 #include "ui/popup_list.hpp"
 
@@ -92,6 +93,57 @@ void ShowMtpMenu() {
 #endif
 }
 
+void ShowUsbHddInstall() {
+    if (!App::GetHddEnable()) {
+        App::Notify("USB HDD mounting is disabled"_i18n);
+        App::DisplayHddOptions(false);
+        return;
+    }
+
+    const auto entries = location::GetStdio(false);
+    for (const auto& e : entries) {
+        if (e.fs_hidden || !e.mount.starts_with("ums")) {
+            continue;
+        }
+
+        auto root = fs::FsPath{e.mount};
+        if (root.ends_with(":")) {
+            root += '/';
+        }
+
+        const ui::menu::filebrowser::FsEntry fs_entry{
+            .name = e.name.c_str(),
+            .root = root,
+            .type = ui::menu::filebrowser::FsType::Stdio,
+            .flags = e.flags,
+        };
+
+        auto mounted_fs = std::make_shared<fs::FsStdio>(true, fs_entry.root);
+        App::Push<ui::menu::filebrowser::Menu>(mounted_fs, fs_entry, mounted_fs->Root());
+        return;
+    }
+
+    App::Notify("No USB HDD detected"_i18n);
+}
+
+void ShowUsbInstallMenu() {
+    ui::PopupList::Items items;
+    items.emplace_back("USB HDD Install"_i18n);
+    items.emplace_back("USB HDD Options"_i18n);
+
+    App::Push<ui::PopupList>("USB Install"_i18n, items, [](auto op_index){
+        if (!op_index) {
+            return;
+        }
+
+        if (*op_index == 0) {
+            ShowUsbHddInstall();
+        } else {
+            App::DisplayHddOptions(false);
+        }
+    });
+}
+
 } // namespace
 
 NetworkMenu::NetworkMenu() : MenuBase{"Network Tools"_i18n, MenuFlag_None} {
@@ -112,8 +164,8 @@ NetworkMenu::NetworkMenu() : MenuBase{"Network Tools"_i18n, MenuFlag_None} {
         { "MTP"_i18n, "MTP install and responder options"_i18n, [](){
             ShowMtpMenu();
         }},
-        { "USB Install"_i18n, "Install games over USB"_i18n, [](){
-            App::Push<ui::menu::usb::Menu>(MenuFlag_None);
+        { "USB Install"_i18n, "Install games from a docked USB HDD"_i18n, [](){
+            ShowUsbInstallMenu();
         }},
     };
 

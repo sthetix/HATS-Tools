@@ -109,6 +109,16 @@ bool is_read_only(std::string_view path) {
     return false;
 }
 
+FsPathReal GetStdioEffectivePath(const Fs& fs, const FsPathReal& path) {
+    const auto root = fs.Root();
+
+    if (root == "/" || FsPath{path.s}.starts_with(root)) {
+        return path;
+    }
+
+    return FsPathReal{AppendPath(root, FsPath{path.s})};
+}
+
 } // namespace
 
 FsPath AppendPath(const FsPath& root_path, const FsPath& _file_path) {
@@ -508,7 +518,7 @@ Result OpenFile(fs::Fs* fs, const FsPathReal& path, u32 mode, File* f) {
 
     FsPathReal effective_path{path};
     if (!f->m_fs->IsNative()) {
-        effective_path = FsPathReal{AppendPath(f->m_fs->Root(), FsPath{path.s})};
+        effective_path = GetStdioEffectivePath(*f->m_fs, path);
     }
 
     log_write("[FS] opening file: %s (mode: 0x%x)\n", effective_path.s, mode);
@@ -656,7 +666,7 @@ Result OpenDirectory(fs::Fs* fs, const FsPathReal& path, u32 mode, Dir* d) {
 
     FsPathReal effective_path{path};
     if (!d->m_fs->IsNative()) {
-        effective_path = FsPathReal{AppendPath(d->m_fs->Root(), FsPath{path.s})};
+        effective_path = GetStdioEffectivePath(*d->m_fs, path);
     }
 
     if (d->m_fs->IsNative()) {

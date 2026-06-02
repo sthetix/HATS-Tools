@@ -731,6 +731,14 @@ auto App::GetGodModeEnabled() -> bool {
     return g_app->m_god_mode.Get();
 }
 
+auto App::GetHddEnable() -> bool {
+    return g_app->m_hdd_enabled.Get();
+}
+
+auto App::GetWriteProtect() -> bool {
+    return g_app->m_hdd_write_protect.Get();
+}
+
 auto App::GetTextScrollSpeed() -> long {
     return g_app->m_text_scroll_speed.Get();
 }
@@ -798,6 +806,41 @@ void App::SetFtpEnable(bool enable) {
             ftpsrv::Exit();
         }
 #endif
+    }
+}
+
+void App::SetHddEnable(bool enable) {
+    if (App::GetHddEnable() != enable) {
+        g_app->m_hdd_enabled.Set(enable);
+
+#ifdef ENABLE_LIBUSBHSFS
+        if (enable) {
+            if (App::GetWriteProtect()) {
+                usbHsFsSetFileSystemMountFlags(UsbHsFsMountFlags_ReadOnly);
+            }
+
+            const auto rc = usbHsFsInitialize(0);
+            if (R_FAILED(rc)) {
+                log_write("[USBHSFS] failed to init: 0x%X\n", rc);
+            }
+        } else {
+            usbHsFsExit();
+        }
+#endif // ENABLE_LIBUSBHSFS
+    }
+}
+
+void App::SetWriteProtect(bool enable) {
+    if (App::GetWriteProtect() != enable) {
+        g_app->m_hdd_write_protect.Set(enable);
+
+#ifdef ENABLE_LIBUSBHSFS
+        if (enable) {
+            usbHsFsSetFileSystemMountFlags(UsbHsFsMountFlags_ReadOnly);
+        } else {
+            usbHsFsSetFileSystemMountFlags(0);
+        }
+#endif // ENABLE_LIBUSBHSFS
     }
 }
 
@@ -1419,6 +1462,8 @@ App::App(const char* argv0) {
             if (app->m_log_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_mtp_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_ftp_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_hdd_enabled.LoadFrom(Key, Value)) {}
+            else if (app->m_hdd_write_protect.LoadFrom(Key, Value)) {}
             else if (app->m_skip_backup_warning.LoadFrom(Key, Value)) {}
             else if (app->m_backup_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_keep_zips.LoadFrom(Key, Value)) {}
@@ -1635,6 +1680,20 @@ App::App(const char* argv0) {
             }
         }
 #endif // ENABLE_LIBUSBDVD
+
+#ifdef ENABLE_LIBUSBHSFS
+        if (App::GetHddEnable()) {
+            SCOPED_TIMESTAMP("usbhsfs init");
+            if (App::GetWriteProtect()) {
+                usbHsFsSetFileSystemMountFlags(UsbHsFsMountFlags_ReadOnly);
+            }
+
+            const auto rc = usbHsFsInitialize(0);
+            if (R_FAILED(rc)) {
+                log_write("[USBHSFS] failed to init: 0x%X\n", rc);
+            }
+        }
+#endif // ENABLE_LIBUSBHSFS
 
         {
             SCOPED_TIMESTAMP("curl init");
@@ -2376,6 +2435,19 @@ void App::DisplayMtpOptions(bool left_side) {
         "Shows the virtual USB speed test folder."_i18n);
 }
 
+void App::DisplayHddOptions(bool left_side) {
+    auto options = std::make_unique<ui::Sidebar>("HDD Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
+    ON_SCOPE_EXIT(App::Push(std::move(options)));
+
+    options->Add<ui::SidebarEntryBool>("Enable"_i18n, App::GetHddEnable(), [](bool& enable){
+        App::SetHddEnable(enable);
+    }, "Enable mounting of connected USB/HDD devices."_i18n);
+
+    options->Add<ui::SidebarEntryBool>("HDD write protect"_i18n, App::GetWriteProtect(), [](bool& enable){
+        App::SetWriteProtect(enable);
+    }, "Makes the connected HDD read-only."_i18n);
+}
+
 void App::DisplayDumpOptions(bool left_side) {
     auto options = std::make_unique<ui::Sidebar>("Game Export Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
     ON_SCOPE_EXIT(App::Push(std::move(options)));
@@ -2479,6 +2551,13 @@ App::~App() {
                 ftpsrv::Exit();
             }
             #endif
+
+            #ifdef ENABLE_LIBUSBHSFS
+            {
+                SCOPED_TIMESTAMP("usbhsfs exit");
+                usbHsFsExit();
+            }
+            #endif // ENABLE_LIBUSBHSFS
 
             {
                 SCOPED_TIMESTAMP("curl_exit");
