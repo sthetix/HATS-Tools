@@ -66,7 +66,7 @@ The cheats manager provides a comprehensive solution for managing game cheats on
 - **Fallback Detection**: Uses installed title metadata and build ID fallbacks when direct detection fails
 
 ### Wipe SYSMMC
-Wipe SYSMMC resets SYSMMC (OFW/Stock) to factory defaults. The flow includes a warning, countdown, cancel option, and reboot attempt after the wipe completes.
+Wipe SYSMMC resets SYSMMC (OFW/Stock) to factory defaults. The wipe approach is based on findings from [factory-refurbishment-nx](https://github.com/HunterMario/factory-refurbishment-nx) by [HunterMario](https://github.com/HunterMario). The flow includes a warning, countdown, cancel option, and reboot attempt after the wipe completes.
 
 **Warning**: This is destructive and cannot be undone. Only use it when you understand exactly what will be wiped.
 
@@ -150,6 +150,7 @@ The output will be found in `out/hats-tools.zip`
 - [id3v2lib](https://github.com/larsbs/id3v2lib)
 - [nxdumptool](https://github.com/DarkMatterCore/nxdumptool) (for RSA verify code)
 - [nx-hbloader](https://github.com/switchbrew/nx-hbloader)
+- [factory-refurbishment-nx](https://github.com/HunterMario/factory-refurbishment-nx) by [HunterMario](https://github.com/HunterMario) - SYSMMC wipe findings
 - Everyone who has contributed to this project!
 
 
