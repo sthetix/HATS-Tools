@@ -2235,6 +2235,8 @@ auto SanitizeCheatContentForAtmosphere(const std::string& content) -> std::strin
     std::istringstream stream(content);
     std::ostringstream sanitized;
     std::string line;
+    std::string pending_header;
+    bool wrote_code_for_header = false;
 
     while (std::getline(stream, line)) {
         if (!line.empty() && line.back() == '\r') {
@@ -2249,7 +2251,6 @@ auto SanitizeCheatContentForAtmosphere(const std::string& content) -> std::strin
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
 
         if (trimmed.empty()) {
-            sanitized << '\n';
             continue;
         }
 
@@ -2258,11 +2259,16 @@ auto SanitizeCheatContentForAtmosphere(const std::string& content) -> std::strin
         }
 
         if (IsCheatHeaderLine(trimmed)) {
-            sanitized << trimmed << '\n';
+            pending_header = trimmed;
+            wrote_code_for_header = false;
             continue;
         }
 
         if (IsHexCodeLine(trimmed)) {
+            if (!pending_header.empty() && !wrote_code_for_header) {
+                sanitized << pending_header << '\n';
+                wrote_code_for_header = true;
+            }
             sanitized << NormalizeHexCodeLine(trimmed) << '\n';
         }
     }
@@ -2293,8 +2299,9 @@ auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -
     std::istringstream stream(text);
     std::ostringstream sanitized;
     std::string line;
-    bool found_cheat_header = false;
-    bool wrote_any_line = false;
+    std::string pending_header;
+    bool wrote_any_code = false;
+    bool wrote_code_for_header = false;
 
     while (std::getline(stream, line)) {
         if (!line.empty() && line.back() == '\r') {
@@ -2308,26 +2315,31 @@ auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
 
-        if (!found_cheat_header) {
-            if (!IsCheatHeaderLine(trimmed)) {
-                continue;
-            }
-            found_cheat_header = true;
-            line = trimmed;
-        } else if (trimmed.rfind("//", 0) == 0) {
-            continue;
-        } else if (IsHexCodeLine(trimmed)) {
-            line = NormalizeHexCodeLine(trimmed);
-        } else {
+        if (trimmed.empty() || trimmed.rfind("//", 0) == 0) {
             continue;
         }
 
-        sanitized << line << '\n';
-        wrote_any_line = true;
+        if (IsCheatHeaderLine(trimmed)) {
+            pending_header = trimmed;
+            wrote_code_for_header = false;
+            continue;
+        }
+
+        if (!IsHexCodeLine(trimmed) || pending_header.empty()) {
+            continue;
+        }
+
+        if (!wrote_code_for_header) {
+            sanitized << pending_header << '\n';
+            wrote_code_for_header = true;
+        }
+
+        sanitized << NormalizeHexCodeLine(trimmed) << '\n';
+        wrote_any_code = true;
     }
 
     out = sanitized.str();
-    return found_cheat_header && wrote_any_line;
+    return wrote_any_code;
 }
 
 auto ImportManualCheatFile(u64 title_id, const fs::FsPath& source_path) -> Result {
