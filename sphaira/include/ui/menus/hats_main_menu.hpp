@@ -47,6 +47,7 @@ private:
     std::string m_hats_version;
     std::string m_firmware_version;
     std::string m_atmosphere_version;
+    std::string m_mmc_status;
     bool m_is_erista{true};
 
     bool m_wipe_countdown_active{false};

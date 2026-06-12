@@ -4,7 +4,29 @@
 #include "ui/nvg_util.hpp"
 #include "i18n.hpp"
 
+#include <cstring>
+
 namespace sphaira::ui::menu {
+namespace {
+
+auto FindTitleStatusSuffix(const std::string& title) -> std::string::size_type {
+    static constexpr const char* suffixes[]{
+        " - SYSMMC",
+        " - EMUMMC",
+        " - UNKNOWN",
+    };
+
+    for (const auto suffix : suffixes) {
+        const auto suffix_len = std::strlen(suffix);
+        if (title.size() >= suffix_len && title.compare(title.size() - suffix_len, suffix_len, suffix) == 0) {
+            return title.size() - suffix_len;
+        }
+    }
+
+    return std::string::npos;
+}
+
+} // namespace
 
 auto MenuBase::GetPolledData(bool force_refresh) -> PolledData {
     static PolledData data{};
@@ -124,7 +146,18 @@ void MenuBase::Draw(NVGcontext* vg, Theme* theme) {
     const auto text_w = SCREEN_WIDTH / 2 - 30;
     const auto title_sub_x = 80 + (bounds[2] - bounds[0]) + 10;
 
-    gfx::drawTextArgs(vg, 80, start_y, 28.f, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT), m_title.c_str());
+    if (const auto suffix_pos = FindTitleStatusSuffix(m_title); suffix_pos != std::string::npos) {
+        const auto title_prefix = m_title.substr(0, suffix_pos);
+        const auto title_suffix = m_title.c_str() + suffix_pos;
+
+        gfx::drawTextArgs(vg, 80, start_y, 28.f, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT), title_prefix.c_str());
+
+        float prefix_bounds[4]{};
+        gfx::textBounds(vg, 0, 0, prefix_bounds, title_prefix.c_str());
+        gfx::drawTextArgs(vg, 80 + (prefix_bounds[2] - prefix_bounds[0]), start_y, 28.f, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT_SELECTED), title_suffix);
+    } else {
+        gfx::drawTextArgs(vg, 80, start_y, 28.f, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT), m_title.c_str());
+    }
     m_scroll_title_sub_heading.Draw(vg, true, title_sub_x, start_y, text_w - title_sub_x, 16, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, theme->GetColour(ThemeEntryID_TEXT_INFO), m_title_sub_heading.c_str());
     m_scroll_sub_heading.Draw(vg, true, 80, 675, text_w - 160, 18, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, theme->GetColour(ThemeEntryID_TEXT), m_sub_heading.c_str());
 }

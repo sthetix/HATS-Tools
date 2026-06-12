@@ -39,6 +39,25 @@ auto GetElapsedSeconds(u64 start_tick) -> s64 {
     return static_cast<s64>(elapsed_ns / 1'000'000'000ULL);
 }
 
+auto IsRunningEmummc(bool* out) -> Result {
+    *out = false;
+
+    Result rc = splInitialize();
+    if (R_FAILED(rc)) {
+        return rc;
+    }
+
+    u64 emummc{};
+    rc = splGetConfig((SplConfigItem)65007, &emummc);
+    splExit();
+
+    if (R_SUCCEEDED(rc)) {
+        *out = emummc != 0;
+    }
+
+    return rc;
+}
+
 } // namespace
 
 // Embedded icon data
@@ -281,6 +300,21 @@ void MainMenu::StartWipeSysmmcFlow() {
         return;
     }
 
+    bool is_emummc{};
+    const auto rc = IsRunningEmummc(&is_emummc);
+    if (R_FAILED(rc)) {
+        App::PushErrorBox(rc, "Failed to verify SYSMMC/emuMMC status. Wipe blocked."_i18n);
+        return;
+    }
+
+    if (is_emummc) {
+        App::Push<OptionBox>(
+            "Wipe SYSMMC (OFW/Stock) is blocked while running emuMMC.\nBoot SYSMMC CFW first."_i18n,
+            "OK"_i18n
+        );
+        return;
+    }
+
     App::Push<OptionBox>(
         "This will wipe SYSMMC (OFW/Stock) and all data.\nData cannot be recovered.\nConsole will force restart."_i18n,
         "Cancel"_i18n,
@@ -314,7 +348,24 @@ void MainMenu::RunWipeSysmmc() {
     m_wipe_in_progress = true;
     m_wipe_countdown_active = false;
 
-    Result rc = nsInitialize();
+    bool is_emummc{};
+    Result rc = IsRunningEmummc(&is_emummc);
+    if (R_FAILED(rc)) {
+        m_wipe_in_progress = false;
+        App::PushErrorBox(rc, "Failed to verify SYSMMC/emuMMC status. Wipe blocked."_i18n);
+        return;
+    }
+
+    if (is_emummc) {
+        m_wipe_in_progress = false;
+        App::Push<OptionBox>(
+            "Wipe SYSMMC (OFW/Stock) is blocked while running emuMMC.\nBoot SYSMMC CFW first."_i18n,
+            "OK"_i18n
+        );
+        return;
+    }
+
+    rc = nsInitialize();
     if (R_SUCCEEDED(rc)) {
         rc = nsResetToFactorySettingsForRefurbishment();
         nsExit();
@@ -378,6 +429,15 @@ void MainMenu::RefreshVersionInfo() {
     m_hats_version = sphaira::hats::getHatsVersion();
     m_firmware_version = sphaira::hats::getSystemFirmware();
     m_atmosphere_version = sphaira::hats::getAtmosphereVersion();
+    m_mmc_status = "UNKNOWN";
+
+    bool is_emummc{};
+    if (R_SUCCEEDED(IsRunningEmummc(&is_emummc))) {
+        m_mmc_status = is_emummc ? "EMUMMC" : "SYSMMC";
+    }
+
+    SetTitle(std::string{"HATS Tools " HATS_TOOLS_VERSION " - "} + m_mmc_status);
+
     m_is_erista = sphaira::hats::isErista();
 }
 
