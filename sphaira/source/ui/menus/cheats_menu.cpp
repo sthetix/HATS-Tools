@@ -1082,8 +1082,10 @@ auto CleanCheatContent(const std::string& content) -> std::string {
             continue;
         }
 
-        // Check if this is a cheat title line [Title]
-        if (line.size() > 2 && line[0] == '[' && line.back() == ']') {
+        // Check if this is a cheat title/master-code line [Title] or {Title}
+        if (line.size() > 2 &&
+            ((line.front() == '[' && line.back() == ']') ||
+             (line.front() == '{' && line.back() == '}'))) {
             std::string title = line.substr(1, line.length() - 2);
             std::string lower_title = title;
             std::transform(lower_title.begin(), lower_title.end(), lower_title.begin(), ::tolower);
@@ -1206,8 +1208,10 @@ auto ParseCheatslipsCheats(const std::string& json_str, const std::string& targe
                     line.erase(0, line.find_first_not_of(" \t\r\n"));
                     line.erase(line.find_last_not_of(" \t\r\n") + 1);
 
-                    // Check for cheat title [Title]
-                    if (!line.empty() && line.size() > 2 && line[0] == '[' && line.back() == ']') {
+                    // Check for cheat title/master-code format [Title] or {Title}
+                    if (line.size() > 2 &&
+                        ((line.front() == '[' && line.back() == ']') ||
+                         (line.front() == '{' && line.back() == '}'))) {
                         // Save previous cheat if exists
                         if (in_cheat && !current_cheat_name.empty()) {
                             CheatEntry entry;
@@ -1297,8 +1301,10 @@ auto ParseCheatslipsCheats(const std::string& json_str, const std::string& targe
                     line.erase(0, line.find_first_not_of(" \t\r\n"));
                     line.erase(line.find_last_not_of(" \t\r\n") + 1);
 
-                    // Check for cheat title [Title]
-                    if (!line.empty() && line.size() > 2 && line[0] == '[' && line.back() == ']') {
+                    // Check for cheat title/master-code format [Title] or {Title}
+                    if (line.size() > 2 &&
+                        ((line.front() == '[' && line.back() == ']') ||
+                         (line.front() == '{' && line.back() == '}'))) {
                         // Save previous cheat if exists
                         if (in_cheat && !current_cheat_name.empty()) {
                             CheatEntry entry;
@@ -2185,7 +2191,34 @@ auto GetManualCheatImportPath(u64 title_id, const std::string& build_id) -> fs::
 }
 
 auto IsCheatHeaderLine(const std::string& line) -> bool {
-    return line.size() >= 3 && line.front() == '[' && line.back() == ']';
+    return line.size() >= 3 &&
+        ((line.front() == '[' && line.back() == ']') ||
+         (line.front() == '{' && line.back() == '}'));
+}
+
+auto IsParenthesizedNoteLine(const std::string& line) -> bool {
+    return line.size() >= 2 && line.front() == '(' && line.back() == ')';
+}
+
+auto GetCheatHeaderName(const std::string& line) -> std::string {
+    if (!IsCheatHeaderLine(line)) {
+        return {};
+    }
+
+    return line.substr(1, line.length() - 2);
+}
+
+auto StripInlineCheatComment(std::string line) -> std::string {
+    const auto comment_pos = line.find("//");
+    if (comment_pos != std::string::npos) {
+        line.erase(comment_pos);
+    }
+
+    while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) {
+        line.pop_back();
+    }
+
+    return line;
 }
 
 auto IsHexCodeLine(const std::string& line) -> bool {
@@ -2254,13 +2287,18 @@ auto SanitizeCheatContentForAtmosphere(const std::string& content) -> std::strin
             continue;
         }
 
-        if (trimmed.rfind("//", 0) == 0) {
+        if (trimmed.rfind("//", 0) == 0 || IsParenthesizedNoteLine(trimmed)) {
             continue;
         }
 
         if (IsCheatHeaderLine(trimmed)) {
             pending_header = trimmed;
             wrote_code_for_header = false;
+            continue;
+        }
+
+        trimmed = StripInlineCheatComment(trimmed);
+        if (trimmed.empty()) {
             continue;
         }
 
@@ -2315,13 +2353,18 @@ auto SanitizeManualCheatContent(const std::vector<u8>& data, std::string& out) -
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
 
-        if (trimmed.empty() || trimmed.rfind("//", 0) == 0) {
+        if (trimmed.empty() || trimmed.rfind("//", 0) == 0 || IsParenthesizedNoteLine(trimmed)) {
             continue;
         }
 
         if (IsCheatHeaderLine(trimmed)) {
             pending_header = trimmed;
             wrote_code_for_header = false;
+            continue;
+        }
+
+        trimmed = StripInlineCheatComment(trimmed);
+        if (trimmed.empty()) {
             continue;
         }
 
@@ -2525,9 +2568,9 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
                 line.erase(0, line.find_first_not_of(" \t\r\n"));
                 line.erase(line.find_last_not_of(" \t\r\n") + 1);
 
-                // Check for cheat title bracket format [Title]
-                if (!line.empty() && line[0] == '[' && line.back() == ']') {
-                    std::string name = line.substr(1, line.length() - 2);
+                // Check for cheat title/master-code format [Title] or {Title}
+                if (IsCheatHeaderLine(line)) {
+                    std::string name = GetCheatHeaderName(line);
                     if (existing_cheat_names.insert(name).second) {
                         existing_cheat_count++;
                     }
@@ -2581,8 +2624,8 @@ auto WriteCheatFile(u64 title_id, const std::string& build_id, const std::vector
                 if (first_newline != std::string::npos) {
                     std::string first_line = content_to_write.substr(0, first_newline);
                     // Remove brackets for comparison
-                    if (first_line.size() > 2 && first_line[0] == '[' && first_line[first_line.size() - 1] == ']') {
-                        std::string first_line_name = first_line.substr(1, first_line.size() - 2);
+                    if (IsCheatHeaderLine(first_line)) {
+                        std::string first_line_name = GetCheatHeaderName(first_line);
                         // Check if it matches the cheat name
                         if (first_line_name == cheat->name) {
                             // Content already has [name] prefix, use it as-is
@@ -3557,8 +3600,8 @@ void CheatContentMenu::ParseCheatContent(const std::string& content) {
             continue;
         }
 
-        // Check for cheat title bracket format [Title]
-        if (!line.empty() && line[0] == '[' && line.back() == ']') {
+        // Check for cheat title/master-code format [Title] or {Title}
+        if (IsCheatHeaderLine(line)) {
             // Save previous cheat if exists
             if (in_cheat && !current_cheat.name.empty()) {
                 // Skip non-cheat entries like credits, website headers
@@ -3585,7 +3628,7 @@ void CheatContentMenu::ParseCheatContent(const std::string& content) {
             }
 
             // Start new cheat
-            current_cheat.name = line.substr(1, line.length() - 2);
+            current_cheat.name = GetCheatHeaderName(line);
             current_cheat.content = line + "\n";
             current_cheat.source = current_source;
             current_cheat.is_empty = false;
