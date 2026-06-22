@@ -8,8 +8,8 @@ HATS-Tools is based on [Sphaira](https://github.com/ITotalJustice/sphaira) by [I
 
 A comprehensive tool for the Nintendo Switch that allows you to:
 
-- **Fetch HATS Pack** - Download and install HATS pack releases
-- **Fetch Firmware** - Download firmware for installation via Daybreak
+- **Update HATS Pack** - Download and install HATS pack releases
+- **Update Firmware** - Download, validate, and install firmware directly
 - **Cheats Manager** - Download and manage game cheats from nx-cheats-db and installed cheat files
 - **Component Manager** - Disable, enable, or permanently delete installed components
 - **File Browser** - Browse, manage, and extract files on your SD card
@@ -31,7 +31,7 @@ A comprehensive tool for the Nintendo Switch that allows you to:
 ## Features
 
 ### HATS Pack and Firmware Downloads
-Download HATS pack releases and firmware packages directly from configured GitHub release sources. HATS pack downloads can be staged for the HATS Installer Payload, with install modes for overwrite or replacement-style installs.
+Download HATS pack releases and firmware packages directly from configured GitHub release sources. HATS pack downloads can be staged for the HATS Installer Payload, with install modes for overwrite or replacement-style installs. Firmware validation and installation integrate the Daybreak update engine developed by Adubbz as part of Atmosphère.
 
 ### Game Hub
 Game Hub groups the restored Sphaira game tools into one place:
@@ -139,6 +139,7 @@ The output will be found in `out/hats-tools.zip`
 ## Credits
 
 - [Sphaira](https://github.com/ITotalJustice/sphaira) by [ITotalJustice](https://github.com/ITotalJustice) - original project HATS-Tools is based on
+- [Daybreak](https://github.com/Atmosphere-NX/Atmosphere) by [Adubbz](https://github.com/Adubbz) - firmware update engine maintained as part of the Atmosphère-NX repository
 - [libpulsar](https://github.com/ITotalJustice/switch-libpulsar)
 - [nanovg-deko3d](https://github.com/ITotalJustice/nanovg-deko3d)
 - [stb](https://github.com/nothings/stb)

@@ -38,6 +38,9 @@ private:
     void FetchReleases();
     void FetchFuses();
     void DownloadFirmware();
+    void CheckCachedFirmware(const FirmwareEntry& release, const std::string& display_name);
+    void PromptInstallFirmware(const std::string& display_name);
+    void InstallFirmware(const std::string& display_name);
     void UpdateSubheading();
     bool IsDowngrade(const std::string& target_version);
     int GetFuseCount(const std::string& version);

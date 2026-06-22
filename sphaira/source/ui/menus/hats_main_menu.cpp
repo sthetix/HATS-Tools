@@ -62,11 +62,11 @@ auto IsRunningEmummc(bool* out) -> Result {
 
 // Embedded icon data
 constexpr const u8 ICON_HATS_PACK[]{
-    #embed <icons/fetch-hats.png>
+    #embed <icons/update-hats.png>
 };
 
 constexpr const u8 ICON_FIRMWARE[]{
-    #embed <icons/fetch-firmware.png>
+    #embed <icons/update-firmware.png>
 };
 
 constexpr const u8 ICON_CHEATS[]{
@@ -104,8 +104,8 @@ constexpr const u8 ICON_NETWORK[]{
 MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None} {
     // Initialize menu items with icon paths
     m_items = {
-        {"Fetch HATS Pack", "Download and install HATS pack releases", "icons/fetch-hats.png"},
-        {"Fetch Firmware", "Download firmware for installation via Daybreak", "icons/fetch-firmware.png"},
+        {"Update HATS Pack", "Download and install HATS pack releases", "icons/update-hats.png"},
+        {"Update Firmware", "Download, validate, and install system firmware", "icons/update-firmware.png"},
         {"Cheats", "Download cheat codes from nx-cheats-db", "icons/cheats.png"},
         {"Component Manager", "Disable, enable, or delete installed components", "icons/component-manager.png"},
         {"File Browser", "Browse and manage files on SD Card", "icons/file-browser.png"},
@@ -258,10 +258,10 @@ void MainMenu::SetIndex(s64 index) {
 
 void MainMenu::OnSelect() {
     switch (m_index) {
-        case 0: // Fetch HATS Pack
+        case 0: // Update HATS Pack
             App::Push<PackMenu>();
             break;
-        case 1: // Fetch Firmware
+        case 1: // Update Firmware
             App::Push<FirmwareMenu>();
             break;
         case 2: // Cheats

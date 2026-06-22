@@ -13,10 +13,13 @@
 #include "yyjson_helper.hpp"
 #include "hats_version.hpp"
 #include "threaded_file_transfer.hpp"
+#include "ams_su.h"
+#include "utils/utils.hpp"
 
 #include <yyjson.h>
 #include <cstring>
 #include <sstream>
+#include <memory>
 
 namespace sphaira::ui::menu::hats {
 
@@ -28,6 +31,74 @@ constexpr const char* FUSES_CACHE = "/switch/hats-tools/cache/hats/fuses.json";
 constexpr const char* FUSES_URL = "https://raw.githubusercontent.com/sthetix/FuseNCA/master/fuses.json";
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/firmware.zip";
 constexpr const char* FIRMWARE_DEST = "/firmware";
+// ams:su expects the same devoptab-style path Daybreak supplies, not an
+// fsdev device-prefixed path such as sdmc:/firmware.
+constexpr const char* FIRMWARE_SERVICE_PATH = "/firmware/";
+constexpr size_t UPDATE_TASK_BUFFER_SIZE = 0x100000;
+
+struct FirmwareValidation {
+    AmsSuUpdateInformation info{};
+    AmsSuUpdateValidationInfo validation{};
+};
+
+std::string FormatFirmwareVersion(u32 version) {
+    return std::to_string((version >> 26) & 0x1f) + "." +
+           std::to_string((version >> 20) & 0x1f) + "." +
+           std::to_string((version >> 16) & 0xf);
+}
+
+Result ValidateFirmware(FirmwareValidation* out) {
+    Result rc = amssuInitialize();
+    if (R_FAILED(rc)) return rc;
+    ON_SCOPE_EXIT(amssuExit());
+
+    R_TRY(amssuGetUpdateInformation(&out->info, FIRMWARE_SERVICE_PATH));
+    R_TRY(amssuValidateUpdate(&out->validation, FIRMWARE_SERVICE_PATH));
+    return out->validation.result;
+}
+
+Result InstallValidatedFirmware(ProgressBox* pbox, bool use_exfat) {
+    Result rc = amssuInitialize();
+    if (R_FAILED(rc)) return rc;
+    ON_SCOPE_EXIT(amssuExit());
+
+    pbox->NewTransfer("Setting up system update...");
+    R_TRY(amssuSetupUpdate(nullptr, UPDATE_TASK_BUFFER_SIZE, FIRMWARE_SERVICE_PATH, use_exfat));
+
+    AsyncResult prepare{};
+    R_TRY(amssuRequestPrepareUpdate(&prepare));
+    ON_SCOPE_EXIT(asyncResultClose(&prepare));
+    pbox->NewTransfer("Preparing system update...");
+
+    while (true) {
+        rc = asyncResultWait(&prepare, 0);
+        if (R_FAILED(rc) && rc != 0xea01) return rc;
+        if (R_SUCCEEDED(rc)) R_TRY(asyncResultGet(&prepare));
+
+        bool prepared = false;
+        R_TRY(amssuHasPreparedUpdate(&prepared));
+        if (prepared) break;
+
+        NsSystemUpdateProgress progress{};
+        R_TRY(amssuGetPrepareUpdateProgress(&progress));
+        pbox->UpdateTransfer(progress.current_size, progress.total_size);
+        svcSleepThread(50'000'000);
+    }
+
+    pbox->NewTransfer("Applying system update...");
+    return amssuApplyPreparedUpdate();
+}
+
+std::string GetFirmwareTargetName() {
+    bool emummc = false;
+    Result rc = splInitialize();
+    if (R_SUCCEEDED(rc)) {
+        u64 value{};
+        if (R_SUCCEEDED(splGetConfig((SplConfigItem)65007, &value))) emummc = value != 0;
+        splExit();
+    }
+    return emummc ? "emuMMC" : "sysMMC";
+}
 
 void from_json(yyjson_val* json, FirmwareEntry& e) {
     JSON_OBJ_ITR(
@@ -484,6 +555,14 @@ void FirmwareMenu::DownloadFirmware() {
     const auto& release = m_releases[m_index];
     std::string display_name = release.name.empty() ? release.tag_name : release.name;
 
+    // A valid /firmware directory can be reused, including after rebooting
+    // from sysMMC into emuMMC. Avoid downloading the same package twice.
+    fs::FsNativeSd fs;
+    if (fs.DirExists(FIRMWARE_DEST)) {
+        CheckCachedFirmware(release, display_name);
+        return;
+    }
+
     bool is_downgrade = IsDowngrade(release.tag_name);
 
     std::string message = "Download firmware " + display_name + "?\n\n";
@@ -508,13 +587,9 @@ void FirmwareMenu::DownloadFirmware() {
                 [release](auto pbox) -> Result {
                     return DownloadAndExtract(pbox, release);
                 },
-                [display_name](Result rc) {
+                [this, display_name](Result rc) {
                     if (R_SUCCEEDED(rc)) {
-                        App::Notify("Downloaded " + display_name);
-                        App::Push<OptionBox>(
-                            "Firmware extracted to /firmware.\n\nUse Daybreak to install it.",
-                            "OK"_i18n
-                        );
+                        PromptInstallFirmware(display_name);
                     } else {
                         App::Push<ErrorBox>(rc, "Failed to download " + display_name);
                     }
@@ -522,6 +597,93 @@ void FirmwareMenu::DownloadFirmware() {
             );
         }
     );
+}
+
+void FirmwareMenu::CheckCachedFirmware(const FirmwareEntry& release, const std::string& display_name) {
+    auto validation = std::make_shared<FirmwareValidation>();
+    App::Push<ProgressBox>(0, "Validating"_i18n, "Cached firmware",
+        [validation](auto pbox) -> Result {
+            pbox->NewTransfer("Checking /firmware...");
+            return ValidateFirmware(validation.get());
+        },
+        [this, release, display_name, validation](Result rc) {
+            if (R_SUCCEEDED(rc)) {
+                const auto cached_version = FormatFirmwareVersion(validation->info.version);
+                std::string message = "Valid cached firmware " + cached_version + " found.\n\n";
+                message += "Install it on " + GetFirmwareTargetName() + " without downloading again?";
+                App::Push<OptionBox>(message, "Download Selected"_i18n, "Install Cached"_i18n, 1,
+                    [this, release, display_name, cached_version](auto op_index) {
+                        if (!op_index) return;
+                        if (*op_index == 1) {
+                            PromptInstallFirmware(cached_version);
+                        } else {
+                            // Remove only the extracted cache; DownloadAndExtract recreates it.
+                            fs::FsNativeSd().DeleteDirectoryRecursively(FIRMWARE_DEST);
+                            DownloadFirmware();
+                        }
+                    });
+            } else {
+                log_write("firmware: cached firmware validation failed: 0x%X\n", rc);
+                App::Push<OptionBox>(
+                    "The cached firmware is incomplete or invalid.\n\nDownload " + display_name + " again?",
+                    "Cancel"_i18n, "Redownload"_i18n, 1,
+                    [this](auto op_index) {
+                        if (op_index && *op_index == 1) {
+                            fs::FsNativeSd().DeleteDirectoryRecursively(FIRMWARE_DEST);
+                            DownloadFirmware();
+                        }
+                    });
+            }
+        });
+}
+
+void FirmwareMenu::PromptInstallFirmware(const std::string& display_name) {
+    auto validation = std::make_shared<FirmwareValidation>();
+    App::Push<ProgressBox>(0, "Validating"_i18n, display_name,
+        [validation](auto pbox) -> Result {
+            pbox->NewTransfer("Validating firmware contents...");
+            return ValidateFirmware(validation.get());
+        },
+        [this, display_name, validation](Result rc) {
+            if (R_FAILED(rc)) {
+                App::Push<ErrorBox>(rc, "Firmware validation failed");
+                return;
+            }
+
+            const auto version = FormatFirmwareVersion(validation->info.version);
+            const bool use_exfat = validation->info.exfat_supported &&
+                                   R_SUCCEEDED(validation->validation.exfat_result);
+            std::string message = "Install firmware " + version + " on " + GetFirmwareTargetName() + "?\n\n";
+            message += use_exfat ? "FAT32 + exFAT support\n" : "FAT32 support only\n";
+            message += "Do not power off the console during installation.";
+            App::Push<OptionBox>(message, "Cancel"_i18n, "Install"_i18n, 1,
+                [this, display_name, use_exfat](auto op_index) {
+                    if (op_index && *op_index == 1) InstallFirmware(display_name);
+                });
+        });
+}
+
+void FirmwareMenu::InstallFirmware(const std::string& display_name) {
+    App::Push<ProgressBox>(0, "Updating Firmware"_i18n, display_name,
+        [](auto pbox) -> Result {
+            FirmwareValidation validation{};
+            R_TRY(ValidateFirmware(&validation));
+            const bool use_exfat = validation.info.exfat_supported &&
+                                   R_SUCCEEDED(validation.validation.exfat_result);
+            return InstallValidatedFirmware(pbox, use_exfat);
+        },
+        [](Result rc) {
+            if (R_FAILED(rc)) {
+                App::Push<ErrorBox>(rc, "Firmware update failed");
+                return;
+            }
+            App::Push<OptionBox>(
+                "Firmware update applied successfully.\n\nReboot now?",
+                "Later"_i18n, "Reboot"_i18n, 1,
+                [](auto op_index) {
+                    if (op_index && *op_index == 1) utils::requestForcedReboot();
+                });
+        }, false);
 }
 
 void FirmwareMenu::UpdateSubheading() {

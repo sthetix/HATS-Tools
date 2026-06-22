@@ -18,7 +18,8 @@ struct ProgressBox final : Widget {
         int image,
         const std::string& action,
         const std::string& title,
-        const ProgressBoxCallback& callback, const ProgressBoxDoneCallback& done = nullptr
+        const ProgressBoxCallback& callback, const ProgressBoxDoneCallback& done = nullptr,
+        bool cancellable = true
     );
     ~ProgressBox();
 

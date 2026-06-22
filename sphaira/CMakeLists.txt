@@ -32,7 +32,7 @@ option(ENABLE_DEVOPTAB_SFTP "" OFF)
 # MAJOR: incompatible changes
 # MINOR: new features (backwards compatible)
 # PATCH: bug fixes (backwards compatible)
-set(HATS_TOOLS_VERSION "1.6.3")
+set(HATS_TOOLS_VERSION "1.7.0")
 set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
 project(hats-tools
@@ -123,6 +123,7 @@ add_executable(hats-tools
     source/location.cpp
     source/log.cpp
     source/main.cpp
+    source/ams_su.c
     source/nro.cpp
 
     # HATS Tools utilities

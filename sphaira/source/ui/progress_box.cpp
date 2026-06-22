@@ -24,7 +24,7 @@ void threadFunc(void* arg) {
 
 } // namespace
 
-ProgressBox::ProgressBox(int image, const std::string& action, const std::string& title, const ProgressBoxCallback& callback, const ProgressBoxDoneCallback& done)
+ProgressBox::ProgressBox(int image, const std::string& action, const std::string& title, const ProgressBoxCallback& callback, const ProgressBoxDoneCallback& done, bool cancellable)
 : m_done{done}
 , m_action{action}
 , m_title{title}
@@ -34,14 +34,16 @@ ProgressBox::ProgressBox(int image, const std::string& action, const std::string
         App::SetBoostMode(true);
     }
 
-    SetAction(Button::B, Action{"Back"_i18n, [this](){
-        App::Push<OptionBox>("Are you sure you wish to cancel?"_i18n, "No"_i18n, "Yes"_i18n, 1, [this](auto op_index){
-            if (op_index && *op_index) {
-                RequestExit();
-                SetPop();
-            }
-        });
-    }});
+    if (cancellable) {
+        SetAction(Button::B, Action{"Back"_i18n, [this](){
+            App::Push<OptionBox>("Are you sure you wish to cancel?"_i18n, "No"_i18n, "Yes"_i18n, 1, [this](auto op_index){
+                if (op_index && *op_index) {
+                    RequestExit();
+                    SetPop();
+                }
+            });
+        }});
+    }
 
     m_pos.w = 770.f;
     m_pos.h = 295.f;
