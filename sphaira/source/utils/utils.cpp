@@ -441,18 +441,18 @@ bool isPayloadSwapped() {
 }
 
 Result requestForcedReboot() {
-    Result rc = spsmInitialize();
+    Result rc = appletRequestToReboot();
+    if (R_SUCCEEDED(rc)) {
+        return rc;
+    }
+
+    rc = spsmInitialize();
     if (R_SUCCEEDED(rc)) {
         rc = spsmShutdown(true);
         spsmExit();
         if (R_SUCCEEDED(rc)) {
             return rc;
         }
-    }
-
-    rc = appletRequestToReboot();
-    if (R_SUCCEEDED(rc)) {
-        return rc;
     }
 
     rc = bpcInitialize();
