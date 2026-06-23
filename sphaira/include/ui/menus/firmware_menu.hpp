@@ -2,6 +2,7 @@
 
 #include "ui/menus/menu_base.hpp"
 #include "ui/list.hpp"
+#include "fs.hpp"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -38,9 +39,11 @@ private:
     void FetchReleases();
     void FetchFuses();
     void DownloadFirmware();
+    void SelectLocalFirmware();
+    void UseLocalFirmware(const fs::FsPath& path);
     void CheckCachedFirmware(const FirmwareEntry& release, const std::string& display_name);
-    void PromptInstallFirmware(const std::string& display_name);
-    void InstallFirmware(const std::string& display_name);
+    void PromptInstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware");
+    void InstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware");
     void UpdateSubheading();
     bool IsDowngrade(const std::string& target_version);
     int GetFuseCount(const std::string& version);
