@@ -46,7 +46,7 @@ private:
     void CheckCachedFirmware(const FirmwareEntry& release, const std::string& display_name);
     void PromptInstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware", bool skip_hats_check = false);
     void InstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware");
-    void CheckHatsFirmwareSupport(const std::string& target_version, const std::function<void()>& callback);
+    void CheckHatsFirmwareSupport(const std::string& target_version, const std::function<void()>& callback, const std::function<void()>& cancel_callback = [](){});
     void UpdateSubheading();
     bool IsDowngrade(const std::string& target_version);
     int GetFuseCount(const std::string& version);
@@ -61,6 +61,7 @@ private:
     bool m_loaded{false};
     bool m_open_local_picker{false};
     bool m_local_only{false};
+    bool m_local_selection_started{false};
     bool m_fuses_loaded{false};
     std::string m_error_message;
     std::string m_current_firmware;

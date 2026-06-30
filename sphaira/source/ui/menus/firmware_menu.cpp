@@ -603,6 +603,9 @@ void FirmwareMenu::OnFocusGained() {
     }
 
     if (m_local_only) {
+        if (!m_local_selection_started) {
+            SetPop();
+        }
         return;
     }
 
@@ -823,7 +826,7 @@ void FirmwareMenu::CheckCachedFirmware(const FirmwareEntry& release, const std::
 void FirmwareMenu::SelectLocalFirmware() {
     App::Push<LocalFirmwarePicker>(
         [this](const fs::FsPath& path) {
-            m_local_only = false;
+            m_local_selection_started = true;
             UseLocalFirmware(path);
         },
         [this]() {
@@ -871,38 +874,52 @@ void FirmwareMenu::PromptInstallFirmware(const std::string& display_name, const 
             const bool use_exfat = validation->info.exfat_supported &&
                                    R_SUCCEEDED(validation->validation.exfat_result);
 
+            const auto exit_local_only = [this]() {
+                if (m_local_only) {
+                    SetPop();
+                }
+            };
+
             const auto show_install_prompt = [this, display_name, path, version, use_exfat]() {
                 std::string message = "Install firmware " + version + " on " + GetFirmwareTargetName() + "?\n\n";
                 message += use_exfat ? "FAT32 + exFAT support\n" : "FAT32 support only\n";
                 message += "Do not power off the console during installation.";
                 App::Push<OptionBox>(message, "Cancel"_i18n, "Install"_i18n, 1,
                     [this, display_name, path](auto op_index) {
-                        if (op_index && *op_index == 1) InstallFirmware(display_name, path);
+                        if (op_index && *op_index == 1) {
+                            m_local_only = false;
+                            m_local_selection_started = false;
+                            InstallFirmware(display_name, path);
+                        } else if (m_local_only) {
+                            SetPop();
+                        }
                     });
             };
 
             if (skip_hats_check) {
                 show_install_prompt();
             } else {
-                CheckHatsFirmwareSupport(version, show_install_prompt);
+                CheckHatsFirmwareSupport(version, show_install_prompt, exit_local_only);
             }
         });
 }
 
-void FirmwareMenu::CheckHatsFirmwareSupport(const std::string& target_version, const std::function<void()>& callback) {
+void FirmwareMenu::CheckHatsFirmwareSupport(const std::string& target_version, const std::function<void()>& callback, const std::function<void()>& cancel_callback) {
     auto support = std::make_shared<HatsSupportInfo>();
     App::Push<ProgressBox>(0, "Checking"_i18n, "HATS compatibility",
         [support](auto pbox) -> Result {
             return FetchLatestHatsSupport(pbox, support.get());
         },
-        [target_version, callback, support](Result rc) {
+        [target_version, callback, cancel_callback, support](Result rc) {
             if (R_FAILED(rc)) {
                 std::string message = "Could not verify HATS support for firmware " + target_version + ".\n\n";
                 message += "Continue only if you are sure a compatible HATS pack is available.";
                 App::Push<OptionBox>(message, "Cancel"_i18n, "Force"_i18n, 0,
-                    [callback](auto op_index) {
+                    [callback, cancel_callback](auto op_index) {
                         if (op_index && *op_index == 1) {
                             callback();
+                        } else {
+                            cancel_callback();
                         }
                     });
                 return;
@@ -917,9 +934,11 @@ void FirmwareMenu::CheckHatsFirmwareSupport(const std::string& target_version, c
             message += "Firmware " + target_version + " may not be supported yet.\n";
             message += "Continue only if you accept the risk.";
             App::Push<OptionBox>(message, "Cancel"_i18n, "Force"_i18n, 0,
-                [callback](auto op_index) {
+                [callback, cancel_callback](auto op_index) {
                     if (op_index && *op_index == 1) {
                         callback();
+                    } else {
+                        cancel_callback();
                     }
                 });
         });
