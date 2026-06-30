@@ -7,6 +7,8 @@
 
 namespace sphaira::ui::menu::hats {
 
+void CheckHatsToolsUpdateManually();
+
 struct MainMenuItem {
     std::string label;
     std::string description;
@@ -28,6 +30,8 @@ private:
     void OnSelect();
     void RefreshVersionInfo();
     void LoadIcons();
+    void CheckToolsUpdate();
+    void ScheduleToolsUpdateRetry();
     void StartWipeSysmmcFlow();
     void StartWipeCountdown();
     void CancelWipeCountdown();
@@ -54,6 +58,11 @@ private:
     bool m_wipe_in_progress{false};
     u64 m_wipe_countdown_start_tick{};
     s64 m_wipe_countdown_seconds{10};
+
+    bool m_tools_update_checking{false};
+    bool m_tools_update_prompted{false};
+    int m_tools_update_attempts{};
+    u64 m_tools_update_retry_tick{};
 };
 
 } // namespace sphaira::ui::menu::hats

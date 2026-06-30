@@ -1,4 +1,5 @@
 #include "ui/menus/hats_settings_menu.hpp"
+#include "ui/menus/hats_main_menu.hpp"
 
 #include "ui/nvg_util.hpp"
 
@@ -20,6 +21,9 @@ SettingsMenu::SettingsMenu() : MenuBase{"Settings"_i18n, MenuFlag_None} {
         }},
         { "All Advanced Options"_i18n, "Open the full advanced options panel"_i18n, [](){
             App::DisplayAdvancedOptions(false);
+        }},
+        { "Check for HATS Tools update"_i18n, "Download and install the latest HATS Tools release"_i18n, [](){
+            CheckHatsToolsUpdateManually();
         }},
     };
 

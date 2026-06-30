@@ -11,24 +11,43 @@
 
 #include "ui/nvg_util.hpp"
 #include "ui/option_box.hpp"
+#include "ui/progress_box.hpp"
+#include "ui/error_box.hpp"
 
 #include "app.hpp"
 #include "app_version.hpp"
 #include "defines.hpp"
+#include "download.hpp"
 #include "log.hpp"
 #include "hats_version.hpp"
 #include "i18n.hpp"
+#include "threaded_file_transfer.hpp"
 #include "utils/utils.hpp"
 
 #include "stb_image.h"
 
 #include <algorithm>
+#include <cstring>
+#include <yyjson.h>
 
 namespace sphaira::ui::menu::hats {
 namespace {
 
 constexpr s64 WIPE_COUNTDOWN_MIN_SECONDS = 5;
 constexpr s64 WIPE_COUNTDOWN_MAX_SECONDS = 60;
+constexpr u64 TOOLS_UPDATE_RETRY_DELAY_NS[] = {
+    10'000'000'000ULL,
+    30'000'000'000ULL,
+    60'000'000'000ULL,
+};
+constexpr const char* HATS_TOOLS_RELEASE_URL = "https://api.github.com/repos/sthetix/HATS-Tools/releases/latest";
+constexpr const char* HATS_TOOLS_RELEASE_CACHE = "/switch/hats-tools/cache/hats-tools-latest.json";
+constexpr const char* HATS_TOOLS_UPDATE_ZIP = "/switch/hats-tools/cache/hats-tools-update.zip";
+
+struct ToolsUpdateInfo {
+    std::string version;
+    std::string url;
+};
 
 auto GetElapsedSeconds(u64 start_tick) -> s64 {
     if (!start_tick) {
@@ -58,7 +77,138 @@ auto IsRunningEmummc(bool* out) -> Result {
     return rc;
 }
 
+auto InstallToolsUpdateZip(ProgressBox* pbox, const std::string& url, const std::string& version) -> Result {
+    fs::FsNativeSd fs;
+    R_TRY(fs.GetFsOpenResult());
+    fs.CreateDirectoryRecursively("/switch/hats-tools/cache");
+
+    if (!pbox->ShouldExit()) {
+        pbox->NewTransfer(i18n::Reorder("Downloading ", version));
+        const auto result = curl::Api().ToFile(
+            curl::Url{url},
+            curl::Path{HATS_TOOLS_UPDATE_ZIP},
+            curl::OnProgress{pbox->OnDownloadProgressCallback()}
+        );
+        R_UNLESS(result.success, 0x1);
+    }
+
+    ON_SCOPE_EXIT(fs.DeleteFile(HATS_TOOLS_UPDATE_ZIP));
+
+    if (!pbox->ShouldExit()) {
+        pbox->NewTransfer("Installing HATS Tools...");
+        R_TRY(thread::TransferUnzipAll(pbox, HATS_TOOLS_UPDATE_ZIP, &fs, "/"));
+        R_TRY(fs.Commit());
+    }
+
+    return 0;
+}
+
+bool ParseToolsUpdateInfo(const fs::FsPath& path, ToolsUpdateInfo* out) {
+    auto doc = yyjson_read_file(path.s, YYJSON_READ_NOFLAG, nullptr, nullptr);
+    R_UNLESS(doc, false);
+    ON_SCOPE_EXIT(yyjson_doc_free(doc));
+
+    auto root = yyjson_doc_get_root(doc);
+    R_UNLESS(root && yyjson_is_obj(root), false);
+
+    auto tag_val = yyjson_obj_get(root, "tag_name");
+    const char* version = tag_val ? yyjson_get_str(tag_val) : nullptr;
+    R_UNLESS(version, false);
+
+    if (!App::IsVersionNewer(APP_VERSION, version)) {
+        return false;
+    }
+
+    auto assets = yyjson_obj_get(root, "assets");
+    R_UNLESS(assets && yyjson_is_arr(assets), false);
+
+    const char* update_url = nullptr;
+    size_t idx, max;
+    yyjson_val* asset;
+    yyjson_arr_foreach(assets, idx, max, asset) {
+        if (!yyjson_is_obj(asset)) {
+            continue;
+        }
+
+        auto name_val = yyjson_obj_get(asset, "name");
+        auto url_val = yyjson_obj_get(asset, "browser_download_url");
+        const char* name = name_val ? yyjson_get_str(name_val) : nullptr;
+        const char* url = url_val ? yyjson_get_str(url_val) : nullptr;
+        if (name && url && std::strstr(name, ".zip")) {
+            update_url = url;
+            break;
+        }
+    }
+    R_UNLESS(update_url, false);
+
+    out->version = version;
+    out->url = update_url;
+    return true;
+}
+
+void InstallToolsUpdate(const std::string& version, const std::string& url) {
+    App::Push<ProgressBox>(0, "Updating HATS Tools"_i18n, version,
+        [version, url](auto pbox) -> Result {
+            return InstallToolsUpdateZip(pbox, url, version);
+        },
+        [](Result rc) {
+            if (R_FAILED(rc)) {
+                App::Push<ErrorBox>(rc, "Failed to update HATS Tools");
+                return;
+            }
+
+            App::Push<OptionBox>(
+                "HATS Tools updated successfully.\n\nRestart now?",
+                "Later"_i18n, "Restart"_i18n, 1,
+                [](auto op_index) {
+                    if (op_index && *op_index == 1) {
+                        App::ExitRestart();
+                    }
+                });
+        });
+}
+
+void PromptToolsUpdate(const ToolsUpdateInfo& update) {
+    App::Push<OptionBox>(
+        "HATS Tools " + update.version + " is available.\n\nDownload and install it now?",
+        "Later"_i18n, "Update"_i18n, 1,
+        [update](auto op_index) {
+            if (op_index && *op_index == 1) {
+                InstallToolsUpdate(update.version, update.url);
+            }
+        });
+}
+
 } // namespace
+
+void CheckHatsToolsUpdateManually() {
+    auto update = std::make_shared<ToolsUpdateInfo>();
+    App::Push<ProgressBox>(0, "Checking"_i18n, "HATS Tools update",
+        [update](auto pbox) -> Result {
+            pbox->NewTransfer("Checking latest HATS Tools...");
+            const auto result = curl::Api().ToFile(
+                curl::Url{HATS_TOOLS_RELEASE_URL},
+                curl::Path{HATS_TOOLS_RELEASE_CACHE},
+                curl::Header{
+                    {"Accept", "application/vnd.github+json"},
+                }
+            );
+            R_UNLESS(result.success, 0x1);
+            R_UNLESS(ParseToolsUpdateInfo(result.path, update.get()), 0x2);
+            return 0;
+        },
+        [update](Result rc) {
+            if (rc == 0x2) {
+                App::Push<OptionBox>("HATS Tools is already up to date."_i18n, "OK"_i18n);
+                return;
+            }
+            if (R_FAILED(rc)) {
+                App::Push<ErrorBox>(rc, "Failed to check HATS Tools update");
+                return;
+            }
+            PromptToolsUpdate(*update);
+        });
+}
 
 // Embedded icon data
 constexpr const u8 ICON_HATS_PACK[]{
@@ -139,6 +289,8 @@ MainMenu::MainMenu() : MenuBase{"HATS Tools " HATS_TOOLS_VERSION, MenuFlag_None}
     const Vec4 v{165, 225.f, 174, 174};
     m_list = std::make_unique<List>(5, 10, m_pos, v, pad);
     m_list->SetLayout(List::Layout::GRID);
+
+    CheckToolsUpdate();
 }
 
 MainMenu::~MainMenu() {
@@ -155,6 +307,12 @@ MainMenu::~MainMenu() {
 }
 
 void MainMenu::Update(Controller* controller, TouchInfo* touch) {
+    if (!m_tools_update_prompted && !m_tools_update_checking && m_tools_update_retry_tick &&
+        armTicksToNs(armGetSystemTick()) >= m_tools_update_retry_tick) {
+        m_tools_update_retry_tick = 0;
+        CheckToolsUpdate();
+    }
+
     if (m_wipe_countdown_active) {
         if (controller->GotDown(Button::B)) {
             CancelWipeCountdown();
@@ -264,7 +422,7 @@ void MainMenu::OnSelect() {
         case 1: // Update Firmware
             App::Push<OptionBox>(
                 "Choose firmware source."_i18n,
-                "GitHub"_i18n, "Local"_i18n, 0,
+                "GitHub (Online)"_i18n, "Local (Offline)"_i18n, 0,
                 [](auto op_index) {
                     if (!op_index) {
                         return;
@@ -492,6 +650,54 @@ void MainMenu::LoadIcons() {
     } else {
         log_write("Warning: Some icons failed to load\n");
     }
+}
+
+void MainMenu::CheckToolsUpdate() {
+    if (m_tools_update_prompted || m_tools_update_checking) {
+        return;
+    }
+
+    m_tools_update_checking = true;
+    m_tools_update_attempts++;
+
+    curl::Api().ToFileAsync(
+        curl::Url{HATS_TOOLS_RELEASE_URL},
+        curl::Path{HATS_TOOLS_RELEASE_CACHE},
+        curl::Flags{curl::Flag_Cache},
+        curl::StopToken{this->GetToken()},
+        curl::Header{
+            {"Accept", "application/vnd.github+json"},
+        },
+        curl::OnComplete{[this](auto& result) {
+            m_tools_update_checking = false;
+
+            if (!result.success) {
+                hats_log_write("hats: failed to check HATS Tools update\n");
+                ScheduleToolsUpdateRetry();
+                return false;
+            }
+
+            ToolsUpdateInfo update;
+            if (!ParseToolsUpdateInfo(result.path, &update)) {
+                return true;
+            }
+
+            m_tools_update_prompted = true;
+            PromptToolsUpdate(update);
+            return true;
+        }}
+    );
+}
+
+void MainMenu::ScheduleToolsUpdateRetry() {
+    const auto retry_index = m_tools_update_attempts - 1;
+    constexpr int retry_count = sizeof(TOOLS_UPDATE_RETRY_DELAY_NS) / sizeof(TOOLS_UPDATE_RETRY_DELAY_NS[0]);
+    if (retry_index < 0 || retry_index >= retry_count) {
+        m_tools_update_retry_tick = 0;
+        return;
+    }
+
+    m_tools_update_retry_tick = armTicksToNs(armGetSystemTick()) + TOOLS_UPDATE_RETRY_DELAY_NS[retry_index];
 }
 
 } // namespace sphaira::ui::menu::hats
