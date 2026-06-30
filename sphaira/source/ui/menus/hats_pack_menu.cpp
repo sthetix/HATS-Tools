@@ -88,6 +88,9 @@ void from_json(const fs::FsPath& path, std::vector<ReleaseEntry>& entries) {
     JSON_INIT_VEC_FILE(path, nullptr, nullptr);
     if (yyjson_is_arr(json)) {
         JSON_ARR_ITR(entries);
+    } else if (yyjson_is_obj(json)) {
+        entries.emplace_back();
+        from_json(json, entries.back());
     }
 }
 

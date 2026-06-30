@@ -262,7 +262,16 @@ void MainMenu::OnSelect() {
             App::Push<PackMenu>();
             break;
         case 1: // Update Firmware
-            App::Push<FirmwareMenu>();
+            App::Push<OptionBox>(
+                "Choose firmware source."_i18n,
+                "GitHub"_i18n, "Local"_i18n, 0,
+                [](auto op_index) {
+                    if (!op_index) {
+                        return;
+                    }
+
+                    App::Push<FirmwareMenu>(*op_index == 1);
+                });
             break;
         case 2: // Cheats
             App::Push<CheatsMenu>();

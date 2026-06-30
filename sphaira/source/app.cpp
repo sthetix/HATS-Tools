@@ -1541,6 +1541,10 @@ App::App(const char* argv0) {
             if (app->m_installer_payload.LoadFrom(Key, Value)) {}
             else if (app->m_installer_staging_path.LoadFrom(Key, Value)) {}
             else if (app->m_installer_install_mode.LoadFrom(Key, Value)) {}
+        } else if (!std::strcmp(Section, "pack")) {
+            if (app->m_pack_url.LoadFrom(Key, Value)) {}
+        } else if (!std::strcmp(Section, "firmware")) {
+            if (app->m_firmware_url.LoadFrom(Key, Value)) {}
         }
 
         return 1;

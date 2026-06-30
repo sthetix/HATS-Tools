@@ -22,6 +22,8 @@
 #include <sstream>
 #include <memory>
 #include <functional>
+#include <algorithm>
+#include <cctype>
 
 namespace sphaira::ui::menu::hats {
 
@@ -29,6 +31,7 @@ namespace {
 
 constexpr const char* CACHE_PATH = "/switch/hats-tools/cache/hats";
 constexpr const char* RELEASES_CACHE = "/switch/hats-tools/cache/hats/firmware_releases.json";
+constexpr const char* HATS_RELEASES_CACHE = "/switch/hats-tools/cache/hats/hats_releases.json";
 constexpr const char* FUSES_CACHE = "/switch/hats-tools/cache/hats/fuses.json";
 constexpr const char* FUSES_URL = "https://raw.githubusercontent.com/sthetix/FuseNCA/master/fuses.json";
 constexpr const char* DOWNLOAD_TEMP = "/switch/hats-tools/cache/hats/firmware.zip";
@@ -38,6 +41,11 @@ constexpr size_t UPDATE_TASK_BUFFER_SIZE = 0x100000;
 struct FirmwareValidation {
     AmsSuUpdateInformation info{};
     AmsSuUpdateValidationInfo validation{};
+};
+
+struct HatsSupportInfo {
+    std::string release_name;
+    std::string supported_firmware;
 };
 
 std::string FormatFirmwareVersion(u32 version) {
@@ -250,6 +258,100 @@ bool isVersionLower(const std::string& target, const std::string& current) {
     return false;
 }
 
+bool isVersionNewer(const std::string& target, const std::string& current) {
+    return isVersionLower(current, target);
+}
+
+std::string ExtractFirmwareVersion(const std::string& text) {
+    for (size_t i = 0; i < text.size(); i++) {
+        if (!std::isdigit(static_cast<unsigned char>(text[i]))) {
+            continue;
+        }
+
+        size_t end = i;
+        while (end < text.size() &&
+               (std::isdigit(static_cast<unsigned char>(text[end])) || text[end] == '.')) {
+            end++;
+        }
+
+        std::string version = text.substr(i, end - i);
+        if (version.find('.') != std::string::npos) {
+            return version;
+        }
+        i = end;
+    }
+
+    return "";
+}
+
+std::string ExtractSupportedFirmware(const std::string& body) {
+    std::istringstream stream(body);
+    std::string line;
+
+    while (std::getline(stream, line)) {
+        auto lowered = line;
+        std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        if (lowered.find("supported firmware") == std::string::npos) {
+            continue;
+        }
+
+        const auto version = ExtractFirmwareVersion(line);
+        if (!version.empty()) {
+            return version;
+        }
+    }
+
+    return "";
+}
+
+Result FetchLatestHatsSupport(ProgressBox* pbox, HatsSupportInfo* out) {
+    auto app = App::GetApp();
+    const std::string pack_url = app->m_pack_url.Get();
+
+    pbox->NewTransfer("Checking latest HATS support...");
+    const auto result = curl::Api().ToFile(
+        curl::Url{pack_url},
+        curl::Path{HATS_RELEASES_CACHE},
+        curl::Header{
+            {"Accept", "application/vnd.github+json"},
+        }
+    );
+    R_UNLESS(result.success, 0x1);
+
+    auto doc = yyjson_read_file(result.path.s, YYJSON_READ_NOFLAG, nullptr, nullptr);
+    R_UNLESS(doc, 0x1);
+    ON_SCOPE_EXIT(yyjson_doc_free(doc));
+
+    auto root = yyjson_doc_get_root(doc);
+    R_UNLESS(root && (yyjson_is_arr(root) || yyjson_is_obj(root)), 0x1);
+
+    auto release = yyjson_is_arr(root) ? yyjson_arr_get(root, 0) : root;
+    R_UNLESS(release && yyjson_is_obj(release), 0x1);
+
+    const char* name = nullptr;
+    if (auto name_val = yyjson_obj_get(release, "name")) {
+        name = yyjson_get_str(name_val);
+    }
+    if ((!name || !*name)) {
+        if (auto tag_val = yyjson_obj_get(release, "tag_name")) {
+            name = yyjson_get_str(tag_val);
+        }
+    }
+
+    const char* body = nullptr;
+    if (auto body_val = yyjson_obj_get(release, "body")) {
+        body = yyjson_get_str(body_val);
+    }
+
+    out->release_name = name ? name : "latest HATS";
+    out->supported_firmware = body ? ExtractSupportedFirmware(body) : "";
+    R_UNLESS(!out->supported_firmware.empty(), 0x1);
+
+    return 0;
+}
+
 auto DownloadAndExtract(ProgressBox* pbox, const FirmwareEntry& release) -> Result {
     fs::FsNativeSd fs;
     Result fs_result = fs.GetFsOpenResult();
@@ -335,7 +437,8 @@ auto DownloadAndExtract(ProgressBox* pbox, const FirmwareEntry& release) -> Resu
 
 } // namespace
 
-FirmwareMenu::FirmwareMenu() : MenuBase{"Firmware Releases", MenuFlag_None} {
+FirmwareMenu::FirmwareMenu(bool open_local_picker) : MenuBase{"Firmware Releases", MenuFlag_None}
+, m_open_local_picker{open_local_picker} {
     fs::FsNativeSd().CreateDirectoryRecursively(CACHE_PATH);
 
     m_current_firmware = sphaira::hats::getSystemFirmware();
@@ -487,6 +590,12 @@ void FirmwareMenu::Draw(NVGcontext* vg, Theme* theme) {
 
 void FirmwareMenu::OnFocusGained() {
     MenuBase::OnFocusGained();
+
+    if (m_open_local_picker) {
+        m_open_local_picker = false;
+        SelectLocalFirmware();
+        return;
+    }
 
     if (!m_loaded && !m_loading) {
         FetchReleases();
@@ -646,18 +755,20 @@ void FirmwareMenu::DownloadFirmware() {
                 return;
             }
 
-            App::Push<ProgressBox>(0, "Downloading"_i18n, display_name,
-                [release](auto pbox) -> Result {
-                    return DownloadAndExtract(pbox, release);
-                },
-                [this, display_name](Result rc) {
-                    if (R_SUCCEEDED(rc)) {
-                        PromptInstallFirmware(display_name);
-                    } else {
-                        App::Push<ErrorBox>(rc, "Failed to download " + display_name);
+            CheckHatsFirmwareSupport(release.tag_name, [this, release, display_name]() {
+                App::Push<ProgressBox>(0, "Downloading"_i18n, display_name,
+                    [release](auto pbox) -> Result {
+                        return DownloadAndExtract(pbox, release);
+                    },
+                    [this, display_name](Result rc) {
+                        if (R_SUCCEEDED(rc)) {
+                            PromptInstallFirmware(display_name, FIRMWARE_DEST, true);
+                        } else {
+                            App::Push<ErrorBox>(rc, "Failed to download " + display_name);
+                        }
                     }
-                }
-            );
+                );
+            });
         }
     );
 }
@@ -723,14 +834,14 @@ void FirmwareMenu::UseLocalFirmware(const fs::FsPath& path) {
         });
 }
 
-void FirmwareMenu::PromptInstallFirmware(const std::string& display_name, const fs::FsPath& path) {
+void FirmwareMenu::PromptInstallFirmware(const std::string& display_name, const fs::FsPath& path, bool skip_hats_check) {
     auto validation = std::make_shared<FirmwareValidation>();
     App::Push<ProgressBox>(0, "Validating"_i18n, display_name,
         [validation, path](auto pbox) -> Result {
             pbox->NewTransfer("Validating firmware contents...");
             return ValidateFirmware(validation.get(), path);
         },
-        [this, display_name, path, validation](Result rc) {
+        [this, display_name, path, validation, skip_hats_check](Result rc) {
             if (R_FAILED(rc)) {
                 App::Push<ErrorBox>(rc, "Firmware validation failed");
                 return;
@@ -739,12 +850,57 @@ void FirmwareMenu::PromptInstallFirmware(const std::string& display_name, const 
             const auto version = FormatFirmwareVersion(validation->info.version);
             const bool use_exfat = validation->info.exfat_supported &&
                                    R_SUCCEEDED(validation->validation.exfat_result);
-            std::string message = "Install firmware " + version + " on " + GetFirmwareTargetName() + "?\n\n";
-            message += use_exfat ? "FAT32 + exFAT support\n" : "FAT32 support only\n";
-            message += "Do not power off the console during installation.";
-            App::Push<OptionBox>(message, "Cancel"_i18n, "Install"_i18n, 1,
-                [this, display_name, path](auto op_index) {
-                    if (op_index && *op_index == 1) InstallFirmware(display_name, path);
+
+            const auto show_install_prompt = [this, display_name, path, version, use_exfat]() {
+                std::string message = "Install firmware " + version + " on " + GetFirmwareTargetName() + "?\n\n";
+                message += use_exfat ? "FAT32 + exFAT support\n" : "FAT32 support only\n";
+                message += "Do not power off the console during installation.";
+                App::Push<OptionBox>(message, "Cancel"_i18n, "Install"_i18n, 1,
+                    [this, display_name, path](auto op_index) {
+                        if (op_index && *op_index == 1) InstallFirmware(display_name, path);
+                    });
+            };
+
+            if (skip_hats_check) {
+                show_install_prompt();
+            } else {
+                CheckHatsFirmwareSupport(version, show_install_prompt);
+            }
+        });
+}
+
+void FirmwareMenu::CheckHatsFirmwareSupport(const std::string& target_version, const std::function<void()>& callback) {
+    auto support = std::make_shared<HatsSupportInfo>();
+    App::Push<ProgressBox>(0, "Checking"_i18n, "HATS compatibility",
+        [support](auto pbox) -> Result {
+            return FetchLatestHatsSupport(pbox, support.get());
+        },
+        [target_version, callback, support](Result rc) {
+            if (R_FAILED(rc)) {
+                std::string message = "Could not verify HATS support for firmware " + target_version + ".\n\n";
+                message += "Continue only if you are sure a compatible HATS pack is available.";
+                App::Push<OptionBox>(message, "Cancel"_i18n, "Force"_i18n, 0,
+                    [callback](auto op_index) {
+                        if (op_index && *op_index == 1) {
+                            callback();
+                        }
+                    });
+                return;
+            }
+
+            if (!isVersionNewer(target_version, support->supported_firmware)) {
+                callback();
+                return;
+            }
+
+            std::string message = "Latest HATS supports firmware up to " + support->supported_firmware + ".\n\n";
+            message += "Firmware " + target_version + " may not be supported yet.\n";
+            message += "Continue only if you accept the risk.";
+            App::Push<OptionBox>(message, "Cancel"_i18n, "Force"_i18n, 0,
+                [callback](auto op_index) {
+                    if (op_index && *op_index == 1) {
+                        callback();
+                    }
                 });
         });
 }
