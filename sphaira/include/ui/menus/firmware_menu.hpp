@@ -42,6 +42,7 @@ private:
     void DownloadFirmware();
     void SelectLocalFirmware();
     void UseLocalFirmware(const fs::FsPath& path);
+    void OnLocalFirmwareCancelled();
     void CheckCachedFirmware(const FirmwareEntry& release, const std::string& display_name);
     void PromptInstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware", bool skip_hats_check = false);
     void InstallFirmware(const std::string& display_name, const fs::FsPath& path = "/firmware");
@@ -59,6 +60,7 @@ private:
     bool m_loading{false};
     bool m_loaded{false};
     bool m_open_local_picker{false};
+    bool m_local_only{false};
     bool m_fuses_loaded{false};
     std::string m_error_message;
     std::string m_current_firmware;

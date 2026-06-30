@@ -122,15 +122,18 @@ std::string GetFirmwareTargetName() {
 
 struct LocalFirmwarePicker final : filebrowser::Base {
     using Callback = std::function<void(const fs::FsPath& path)>;
+    using CancelCallback = std::function<void()>;
 
-    explicit LocalFirmwarePicker(const Callback& callback)
+    explicit LocalFirmwarePicker(const Callback& callback, const CancelCallback& cancel_callback = [](){})
     : Base{MenuFlag_None, filebrowser::FsOption_Picker}
-    , m_callback{callback} {
+    , m_callback{callback}
+    , m_cancel_callback{cancel_callback} {
         SetTitle("Select Firmware Folder"_i18n);
         SetAction(Button::X, Action{"Select"_i18n, [this](){
             SelectCurrentFolder();
         }});
         SetAction(Button::B, Action{"Back"_i18n, [this](){
+            m_cancel_callback();
             SetPop();
         }});
     }
@@ -158,6 +161,7 @@ private:
 
 private:
     const Callback m_callback;
+    const CancelCallback m_cancel_callback;
 };
 
 void from_json(yyjson_val* json, FirmwareEntry& e) {
@@ -438,7 +442,8 @@ auto DownloadAndExtract(ProgressBox* pbox, const FirmwareEntry& release) -> Resu
 } // namespace
 
 FirmwareMenu::FirmwareMenu(bool open_local_picker) : MenuBase{"Firmware Releases", MenuFlag_None}
-, m_open_local_picker{open_local_picker} {
+, m_open_local_picker{open_local_picker}
+, m_local_only{open_local_picker} {
     fs::FsNativeSd().CreateDirectoryRecursively(CACHE_PATH);
 
     m_current_firmware = sphaira::hats::getSystemFirmware();
@@ -594,6 +599,10 @@ void FirmwareMenu::OnFocusGained() {
     if (m_open_local_picker) {
         m_open_local_picker = false;
         SelectLocalFirmware();
+        return;
+    }
+
+    if (m_local_only) {
         return;
     }
 
@@ -812,9 +821,20 @@ void FirmwareMenu::CheckCachedFirmware(const FirmwareEntry& release, const std::
 }
 
 void FirmwareMenu::SelectLocalFirmware() {
-    App::Push<LocalFirmwarePicker>([this](const fs::FsPath& path) {
-        UseLocalFirmware(path);
-    });
+    App::Push<LocalFirmwarePicker>(
+        [this](const fs::FsPath& path) {
+            m_local_only = false;
+            UseLocalFirmware(path);
+        },
+        [this]() {
+            OnLocalFirmwareCancelled();
+        });
+}
+
+void FirmwareMenu::OnLocalFirmwareCancelled() {
+    if (m_local_only) {
+        SetPop();
+    }
 }
 
 void FirmwareMenu::UseLocalFirmware(const fs::FsPath& path) {
