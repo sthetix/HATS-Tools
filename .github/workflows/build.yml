@@ -1,0 +1,29 @@
+name: build
+
+on:
+  push:
+    branches-ignore:
+      - dev
+  pull_request:
+    branches-ignore:
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:20251231
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Official Release Build
+      run: |
+        chmod +x build_release.sh
+        ./build_release.sh
+
+    - name: Deploy Release Zip
+      if: ${{ github.event_name != 'pull_request' && github.event.action != 'unassigned' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: hats-tools-release
+        path: out/*.zip
