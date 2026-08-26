@@ -393,8 +393,6 @@ void UninstallerMenu::LoadComponents() {
     }
 
     if (!manifest::exists()) {
-    
-    if (!manifest::exists()) {
         m_error_message = "No manifest.json found on SD card";
         m_loaded = true;
         log_write("[UNINSTALL] no manifest found at %s\n", manifest::MANIFEST_PATH);
