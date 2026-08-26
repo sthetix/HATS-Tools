@@ -139,10 +139,10 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Component Manager", MenuFlag_None
         std::make_pair(Button::R, Action{"View"_i18n, [this](){
             SwitchView();
         }}),
-        std::make_pair(Button::ZL, Action{"HATS Tab"_i18n, [this](){
+        std::make_pair(Button::L2, Action{"HATS Tab"_i18n, [this](){
             SwitchTab(ComponentTab::Hats);
         }}),
-        std::make_pair(Button::ZR, Action{"Custom Tab"_i18n, [this](){
+        std::make_pair(Button::R2, Action{"Custom Tab"_i18n, [this](){
             SwitchTab(ComponentTab::Custom);
         }})
     );
