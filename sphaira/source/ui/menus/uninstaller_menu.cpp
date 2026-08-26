@@ -138,6 +138,12 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Component Manager", MenuFlag_None
         }}),
         std::make_pair(Button::R, Action{"View"_i18n, [this](){
             SwitchView();
+        }}),
+        std::make_pair(Button::ZL, Action{"HATS Tab"_i18n, [this](){
+            SwitchTab(ComponentTab::Hats);
+        }}),
+        std::make_pair(Button::ZR, Action{"Custom Tab"_i18n, [this](){
+            SwitchTab(ComponentTab::Custom);
         }})
     );
 
@@ -167,8 +173,67 @@ void UninstallerMenu::Update(Controller* controller, TouchInfo* touch) {
     }
 }
 
+void UninstallerMenu::DrawTabs(NVGcontext* vg, Theme* theme) {
+    const float y = GetY() + 48.f;
+    const float height = 32.f;
+    const float start_x = 75.f;
+    const float total_w = 1220.f - 150.f; // 1070px
+    const float tab_w = (total_w - 20.f) / 2.f;
+
+    // --- TAB 1: HATS ---
+    float hats_x = start_x;
+    bool hats_active = (m_tab == ComponentTab::Hats);
+
+    nvgBeginPath(vg);
+    nvgRoundedRect(vg, hats_x, y, tab_w, height, 6.f);
+    nvgFillColor(vg, hats_active ? theme->GetColour(ThemeEntryID_LINE) 
+                                 : theme->GetColour(ThemeEntryID_BACKGROUND));
+    nvgFill(vg);
+
+    nvgStrokeWidth(vg, hats_active ? 2.f : 1.f);
+    nvgStrokeColor(vg, hats_active ? theme->GetColour(ThemeEntryID_TEXT_SELECTED) 
+                                   : theme->GetColour(ThemeEntryID_LINE_SEPARATOR));
+    nvgStroke(vg);
+
+    gfx::drawTextArgs(vg, hats_x + 15.f, y + height / 2.f, 14.f,
+                      NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE,
+                      theme->GetColour(ThemeEntryID_TEXT_INFO),
+                      "[ZL]");
+
+    gfx::drawTextArgs(vg, hats_x + tab_w / 2.f, y + height / 2.f, 16.f,
+                      NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
+                      theme->GetColour(hats_active ? ThemeEntryID_TEXT_SELECTED : ThemeEntryID_TEXT),
+                      "HATS");
+
+    // --- TAB 2: Custom ---
+    float custom_x = start_x + tab_w + 20.f;
+    bool custom_active = (m_tab == ComponentTab::Custom);
+
+    nvgBeginPath(vg);
+    nvgRoundedRect(vg, custom_x, y, tab_w, height, 6.f);
+    nvgFillColor(vg, custom_active ? theme->GetColour(ThemeEntryID_LINE) 
+                                    : theme->GetColour(ThemeEntryID_BACKGROUND));
+    nvgFill(vg);
+
+    nvgStrokeWidth(vg, custom_active ? 2.f : 1.f);
+    nvgStrokeColor(vg, custom_active ? theme->GetColour(ThemeEntryID_TEXT_SELECTED) 
+                                      : theme->GetColour(ThemeEntryID_LINE_SEPARATOR));
+    nvgStroke(vg);
+
+    gfx::drawTextArgs(vg, custom_x + tab_w / 2.f, y + height / 2.f, 16.f,
+                      NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
+                      theme->GetColour(custom_active ? ThemeEntryID_TEXT_SELECTED : ThemeEntryID_TEXT),
+                      "Custom");
+
+    gfx::drawTextArgs(vg, custom_x + tab_w - 15.f, y + height / 2.f, 14.f,
+                      NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
+                      theme->GetColour(ThemeEntryID_TEXT_INFO),
+                      "[ZR]");
+}
+
 void UninstallerMenu::Draw(NVGcontext* vg, Theme* theme) {
     MenuBase::Draw(vg, theme);
+    DrawTabs(vg, theme);
 
     // Draw warning header
     const bool god_mode = App::GetGodModeEnabled();
@@ -309,6 +374,10 @@ void UninstallerMenu::LoadComponents() {
     m_selected_ids.clear();
     m_error_message.clear();
 
+    if (m_tab == ComponentTab::Custom) {
+        LoadCustomComponents(); 
+    }
+    
     if (!manifest::exists()) {
         m_error_message = "No manifest.json found on SD card";
         m_loaded = true;
@@ -373,10 +442,41 @@ void UninstallerMenu::LoadComponents() {
     UpdateActions();
 }
 
+void UninstallerMenu::LoadCustomComponents() {
+ComponentItem item1;
+    item1.id = "custom_sysmodule_1";
+    item1.name = "Custom Sys-module";
+    item1.version = "1.0.0";
+    item1.category = "Sysmodule";
+    item1.file_count = 2;
+    item1.is_protected = false;
+    item1.is_selected = false;
+    m_items.push_back(item1);
+
+    ComponentItem item2;
+    item2.id = "custom_overlay_1";
+    item2.name = "User Overlay Mod";
+    item2.version = "2.1.0";
+    item2.category = "Overlay";
+    item2.file_count = 4;
+    item2.is_protected = false;
+    item2.is_selected = false;
+    m_items.push_back(item2);
+}
+
 void UninstallerMenu::SwitchView() {
     m_view = m_view == ComponentView::Installed ? ComponentView::Disabled : ComponentView::Installed;
     m_loaded = false;
     m_index = 0;
+    LoadComponents();
+}
+
+void UninstallerMenu::SwitchTab(ComponentTab tab) {
+    if (m_tab == tab) return;
+
+    m_tab = tab;
+    m_index = 0;
+    m_loaded = false;
     LoadComponents();
 }
 
