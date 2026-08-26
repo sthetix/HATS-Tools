@@ -52,6 +52,7 @@ private:
     void UpdateActions();
     void SwitchTab(ComponentTab tab);
     void DrawTabs(NVGcontext* vg, Theme* theme);
+    void LoadCustomComponents();
 
     size_t GetSelectedCount() const;
 
