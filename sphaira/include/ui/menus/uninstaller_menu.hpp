@@ -24,6 +24,11 @@ enum class ComponentView {
     Disabled,
 };
 
+enum class ComponentTab {
+    Hats,
+    Custom,
+};
+
 struct UninstallerMenu final : MenuBase {
     UninstallerMenu();
     ~UninstallerMenu();
@@ -45,6 +50,8 @@ private:
     void DeselectAll();
     void UpdateSubheading();
     void UpdateActions();
+    void SwitchTab(ComponentTab tab);
+    void DrawTabs(NVGcontext* vg, Theme* theme);
 
     size_t GetSelectedCount() const;
 
@@ -56,6 +63,7 @@ private:
     s64 m_index{};
     std::unique_ptr<List> m_list;
     ComponentView m_view{ComponentView::Installed};
+    ComponentTab m_tab{ComponentTab::Hats};
 
     bool m_loaded{false};
     std::string m_error_message;
