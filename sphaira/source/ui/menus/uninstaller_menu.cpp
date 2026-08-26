@@ -186,9 +186,12 @@ void UninstallerMenu::DrawTabs(NVGcontext* vg, Theme* theme) {
 
     nvgBeginPath(vg);
     nvgRoundedRect(vg, hats_x, y, tab_w, height, 6.f);
-    nvgFillColor(vg, hats_active ? theme->GetColour(ThemeEntryID_LINE) 
-                                 : theme->GetColour(ThemeEntryID_BACKGROUND));
+    nvgFillColor(vg, theme->GetColour(ThemeEntryID_BACKGROUND));
     nvgFill(vg);
+    if (hats_active) {
+        nvgFillColor(vg, nvgRGBA(255, 255, 255, 25)); // Sfumatura grigio semi-chiaro (10% bianco)
+        nvgFill(vg);
+    }
 
     nvgStrokeWidth(vg, hats_active ? 2.f : 1.f);
     nvgStrokeColor(vg, hats_active ? theme->GetColour(ThemeEntryID_TEXT_SELECTED) 
@@ -211,9 +214,12 @@ void UninstallerMenu::DrawTabs(NVGcontext* vg, Theme* theme) {
 
     nvgBeginPath(vg);
     nvgRoundedRect(vg, custom_x, y, tab_w, height, 6.f);
-    nvgFillColor(vg, custom_active ? theme->GetColour(ThemeEntryID_LINE) 
-                                    : theme->GetColour(ThemeEntryID_BACKGROUND));
+    nvgFillColor(vg, theme->GetColour(ThemeEntryID_BACKGROUND));
     nvgFill(vg);
+    if (custom_active) {
+        nvgFillColor(vg, nvgRGBA(255, 255, 255, 25)); // Sfumatura grigio semi-chiaro (10% bianco)
+        nvgFill(vg);
+    }
 
     nvgStrokeWidth(vg, custom_active ? 2.f : 1.f);
     nvgStrokeColor(vg, custom_active ? theme->GetColour(ThemeEntryID_TEXT_SELECTED) 
@@ -375,8 +381,18 @@ void UninstallerMenu::LoadComponents() {
     m_error_message.clear();
 
     if (m_tab == ComponentTab::Custom) {
-        LoadCustomComponents(); 
+        LoadCustomComponents();
+        m_loaded = true;
+        if (!m_items.empty()) {
+            SetIndex(0);
+        } else {
+            UpdateSubheading();
+        }
+        UpdateActions();
+        return;
     }
+
+    if (!manifest::exists()) {
     
     if (!manifest::exists()) {
         m_error_message = "No manifest.json found on SD card";
