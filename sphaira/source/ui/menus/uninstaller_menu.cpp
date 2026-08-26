@@ -139,6 +139,12 @@ UninstallerMenu::UninstallerMenu() : MenuBase{"Component Manager", MenuFlag_None
         std::make_pair(Button::R, Action{"View"_i18n, [this](){
             SwitchView();
         }}),
+        std::make_pair(Button::L2, Action{"", [this](){
+            SwitchTab(ComponentTab::Hats);
+        }}),
+        std::make_pair(Button::R2, Action{"", [this](){
+            SwitchTab(ComponentTab::Custom);
+        }})
     );
 
     // List Y position lowered to avoid crossing the warning text
@@ -154,12 +160,6 @@ UninstallerMenu::~UninstallerMenu() {
 
 void UninstallerMenu::Update(Controller* controller, TouchInfo* touch) {
     MenuBase::Update(controller, touch);
-
-    if (controller->GetButtonSingle(Button::L2)) {
-        SwitchTab(ComponentTab::Hats);
-    } else if (controller->GetButtonSingle(Button::R2)) {
-        SwitchTab(ComponentTab::Custom);
-    }
 
     if (!m_items.empty()) {
         m_list->OnUpdate(controller, touch, m_index, m_items.size(), [this](bool touch, auto i) {
