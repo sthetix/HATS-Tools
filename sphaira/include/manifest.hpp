@@ -60,6 +60,9 @@ bool loadDisabled(DisabledComponents& out);
 // Save disabled component metadata.
 bool saveDisabled(const DisabledComponents& disabled);
 
+// Prepare a staged pack while preserving the user's disabled components.
+bool prepareDisabledUpdate(const fs::FsPath& staging_path, fs::Fs* fs);
+
 // Get list of all components (for uninstaller menu)
 std::vector<Component> getComponents(const Manifest& m);
 

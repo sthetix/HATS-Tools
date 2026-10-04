@@ -257,6 +257,11 @@ bool loadDisabled(DisabledComponents& out) {
 
     auto doc = yyjson_read_file(DISABLED_COMPONENTS_PATH, YYJSON_READ_NOFLAG, nullptr, nullptr);
     if (!doc) {
+        fs::FsNativeSd fs;
+        if (R_FAILED(fs.GetFsOpenResult()) || fs.FileExists(DISABLED_COMPONENTS_PATH)) {
+            log_write("manifest: failed to read disabled components metadata\n");
+            return false;
+        }
         log_write("manifest: no disabled components metadata at %s\n", DISABLED_COMPONENTS_PATH);
         return true;
     }
@@ -268,8 +273,13 @@ bool loadDisabled(DisabledComponents& out) {
         return false;
     }
 
-    if (auto components_val = yyjson_obj_get(root, "components")) {
-        from_json(components_val, out.components);
+    auto components_val = yyjson_obj_get(root, "components");
+    if (!yyjson_is_obj(components_val)) {
+        return false;
+    }
+    from_json(components_val, out.components);
+    if (yyjson_obj_size(components_val) != out.components.size()) {
+        return false;
     }
 
     log_write("manifest: loaded %zu disabled components from %s\n",
@@ -312,6 +322,129 @@ bool saveDisabled(const DisabledComponents& disabled) {
     }
 
     return success;
+}
+
+bool prepareDisabledUpdate(const fs::FsPath& staging_path, fs::Fs* fs) {
+    DisabledComponents disabled;
+    if (!loadDisabled(disabled)) {
+        return false;
+    }
+    if (disabled.components.empty()) {
+        return true;
+    }
+
+    const auto staged_manifest = staging_path + MANIFEST_PATH;
+    auto doc = yyjson_read_file(staged_manifest, YYJSON_READ_NOFLAG, nullptr, nullptr);
+    if (!doc) {
+        log_write("[UPDATE] failed to read staged manifest\n");
+        return false;
+    }
+    ON_SCOPE_EXIT(yyjson_doc_free(doc));
+
+    auto root = yyjson_doc_get_root(doc);
+    auto components = yyjson_obj_get(root, "components");
+    if (!yyjson_is_obj(root) || !yyjson_is_obj(components)) {
+        return false;
+    }
+
+    Manifest pack;
+    from_json(components, pack.components);
+    Manifest active = pack;
+    for (const auto& [id, comp] : disabled.components) {
+        active.components.erase(id);
+    }
+
+    auto updated_doc = yyjson_doc_mut_copy(doc, nullptr);
+    if (!updated_doc) {
+        return false;
+    }
+    ON_SCOPE_EXIT(yyjson_mut_doc_free(updated_doc));
+    auto updated_components = yyjson_mut_obj_get(yyjson_mut_doc_get_root(updated_doc), "components");
+
+    for (auto& [id, old_comp] : disabled.components) {
+        const auto it = pack.components.find(id);
+        if (it == pack.components.end()) {
+            continue;
+        }
+        if (id.empty() || id == "." || id == ".." || id.find_first_of("/\\:") != std::string::npos) {
+            return false;
+        }
+
+        const auto& comp = it->second;
+        auto files = yyjson_obj_get(yyjson_obj_get(components, id.c_str()), "files");
+        if (!yyjson_is_arr(files) || yyjson_arr_size(files) != comp.files.size()) {
+            return false;
+        }
+        for (const auto& file : comp.files) {
+            const auto path = normalize_path(file);
+            const auto relative = path.toString();
+            if (relative == "/" || relative.find_first_of("\\:") != std::string::npos ||
+                relative.find("/../") != std::string::npos || relative.ends_with("/..") ||
+                relative.find("/./") != std::string::npos || relative.ends_with("/.")) {
+                return false;
+            }
+            if (is_shared_file(active, id, file)) {
+                continue;
+            }
+
+            const auto source = staging_path + path;
+            const auto destination = staging_path + disabled_path_for(id, file);
+            if (R_FAILED(fs->CreateDirectoryRecursivelyWithPath(destination))) {
+                return false;
+            }
+
+            Result rc;
+            if (fs->FileExists(source)) {
+                if (is_shared_file(pack, id, file)) {
+                    rc = fs->copy_entire_file(destination, source);
+                } else {
+                    rc = fs->RenameFile(source, destination);
+                }
+            } else if (fs->DirExists(source)) {
+                if (is_shared_file(pack, id, file)) {
+                    log_write("[UPDATE] shared directory requires manual handling: %s\n", source.s);
+                    return false;
+                }
+                rc = fs->RenameDirectory(source, destination);
+            } else {
+                log_write("[UPDATE] missing staged disabled file: %s\n", source.s);
+                return false;
+            }
+            if (R_FAILED(rc)) {
+                log_write("[UPDATE] failed to stage disabled file %s: 0x%X\n", source.s, rc);
+                return false;
+            }
+        }
+
+        old_comp = comp;
+        yyjson_mut_obj_remove_str(updated_components, id.c_str());
+        log_write("[UPDATE] keeping %s disabled at version %s\n", id.c_str(), comp.version.c_str());
+        pack.components.erase(it);
+    }
+
+    auto disabled_doc = yyjson_mut_doc_new(nullptr);
+    if (!disabled_doc) {
+        return false;
+    }
+    ON_SCOPE_EXIT(yyjson_mut_doc_free(disabled_doc));
+    auto disabled_root = yyjson_mut_obj(disabled_doc);
+    yyjson_mut_doc_set_root(disabled_doc, disabled_root);
+    auto disabled_components = yyjson_mut_obj(disabled_doc);
+    yyjson_mut_obj_add_val(disabled_doc, disabled_root, "components", disabled_components);
+    for (const auto& [id, comp] : disabled.components) {
+        yyjson_mut_obj_add_val(disabled_doc, disabled_components, id.c_str(), component_to_json(disabled_doc, comp));
+    }
+
+    const auto staged_disabled = staging_path + DISABLED_COMPONENTS_PATH;
+    if (R_FAILED(fs->CreateDirectoryRecursivelyWithPath(staged_disabled))) {
+        return false;
+    }
+    if (!yyjson_mut_write_file(staged_disabled, disabled_doc, YYJSON_WRITE_PRETTY, nullptr, nullptr) ||
+        !yyjson_mut_write_file(staged_manifest, updated_doc, YYJSON_WRITE_PRETTY, nullptr, nullptr)) {
+        log_write("[UPDATE] failed to save staged component metadata\n");
+        return false;
+    }
+    return true;
 }
 
 std::vector<Component> getComponents(const Manifest& m) {
