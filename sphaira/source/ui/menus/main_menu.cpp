@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "ui/menus/main_menu.hpp"
 
 #include "ui/sidebar.hpp"
@@ -111,7 +112,7 @@ auto InstallUpdate(ProgressBox* pbox, const std::string url, const std::string v
                 // check that this is really HATS Tools.
                 log_write("[UPD] checking nacp\n");
                 NacpStruct nacp;
-                if (R_SUCCEEDED(nro_get_nacp(path, nacp)) && !std::strcmp(nacp.lang[0].name, "HATS Tools")) {
+                if (R_SUCCEEDED(nro_get_nacp(path, nacp)) && !std::strcmp(NacpLanguageEntries(nacp)[0].name, "HATS Tools")) {
                     log_write("[UPD] found, updating\n");
                     pbox->NewTransfer(path);
                     R_TRY(pbox->CopyFile(&fs, exe_path, path));

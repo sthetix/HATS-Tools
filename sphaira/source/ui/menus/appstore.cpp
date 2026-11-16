@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "ui/menus/appstore.hpp"
 #include "ui/menus/homebrew.hpp"
 #include "ui/sidebar.hpp"
@@ -1235,7 +1236,7 @@ void Menu::ScanHomebrew() {
                     if (e.name == "hbmenu") {
                         NacpStruct nacp;
                         if (R_SUCCEEDED(nro_get_nacp(e.binary, nacp))) {
-                            filtered = std::strcmp(nacp.lang[0].name, "nx-hbmenu");
+                            filtered = std::strcmp(NacpLanguageEntries(nacp)[0].name, "nx-hbmenu");
                         }
                     }
                     // ignore single retroarch core.

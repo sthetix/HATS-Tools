@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "ui/menus/cheats_menu.hpp"
 
 #include "ui/nvg_util.hpp"
@@ -958,7 +959,7 @@ auto GetTitleName(u64 title_id) -> std::string {
             log_write("[Cheats] GetTitleName: selected language entry invalid for %016lx, trying fallbacks\n", source_title_id);
         }
 
-        for (const auto& entry : nacp.lang) {
+        for (const auto& entry : NacpLanguageEntries(nacp)) {
             if (&entry == lang_entry) {
                 continue;
             }

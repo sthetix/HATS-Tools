@@ -14,6 +14,7 @@
 #include "download.hpp"
 #include "fs.hpp"
 #include "manifest.hpp"
+#include "hats_version.hpp"
 #include "i18n.hpp"
 #include "yyjson_helper.hpp"
 #include "threaded_file_transfer.hpp"
@@ -588,13 +589,36 @@ void PackMenu::FetchReleases() {
     );
 }
 
-void PackMenu::DownloadAndInstall() {
+void PackMenu::DownloadAndInstall(bool same_version_confirmed) {
     if (m_releases.empty() || m_index >= (s64)m_releases.size()) {
         return;
     }
 
     const auto& release = m_releases[m_index];
     std::string display_name = release.name.empty() ? release.tag_name : release.name;
+
+    auto installed_version = sphaira::hats::getHatsVersion();
+    const auto version_end = installed_version.find_last_not_of(" \t\r\n");
+    if (version_end != std::string::npos) {
+        installed_version.erase(version_end + 1);
+    }
+    auto asset_version = release.asset_name;
+    if (asset_version.size() > 4 && asset_version.compare(asset_version.size() - 4, 4, ".zip") == 0) {
+        asset_version.resize(asset_version.size() - 4);
+    }
+    const bool same_version = installed_version.compare(0, 5, "HATS-") == 0 &&
+        (installed_version == release.tag_name || installed_version == asset_version);
+    if (!same_version_confirmed && same_version) {
+        App::Push<OptionBox>(
+            installed_version + " is already installed.\n\nContinue anyway?",
+            "Cancel"_i18n, "Continue"_i18n, 0,
+            [this](auto op_index) {
+                if (op_index && *op_index == 1) {
+                    DownloadAndInstall(true);
+                }
+            });
+        return;
+    }
 
     // Get staging path from config for display message
     auto app = App::GetApp();

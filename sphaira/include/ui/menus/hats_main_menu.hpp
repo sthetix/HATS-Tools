@@ -53,6 +53,7 @@ private:
     std::string m_atmosphere_version;
     std::string m_mmc_status;
     bool m_is_erista{true};
+    int m_clean_emummc_icon{};
 
     bool m_wipe_countdown_active{false};
     bool m_wipe_in_progress{false};

@@ -32,7 +32,7 @@ option(ENABLE_DEVOPTAB_SFTP "" OFF)
 # MAJOR: incompatible changes
 # MINOR: new features (backwards compatible)
 # PATCH: bug fixes (backwards compatible)
-set(HATS_TOOLS_VERSION "1.7.4")
+set(HATS_TOOLS_VERSION "1.7.5")
 set(sphaira_VERSION ${HATS_TOOLS_VERSION})
 
 project(hats-tools
@@ -186,6 +186,7 @@ target_compile_definitions(hats-tools PRIVATE
     -DCURL_NO_OLDIES=1
     -DDEV_BUILD=$<BOOL:${DEV_BUILD}>
     -DZSTD_STATIC_LINKING_ONLY=1
+    -DLIBNX_HAS_DEBUG_EVENT_INFO=1
 )
 
 target_compile_options(hats-tools PRIVATE
@@ -263,8 +264,8 @@ FetchContent_Declare(zstd
 )
 
 FetchContent_Declare(libnxtc
-    GIT_REPOSITORY https://github.com/ITotalJustice/libnxtc.git
-    GIT_TAG 88ce3d8
+    GIT_REPOSITORY https://github.com/DarkMatterCore/libnxtc.git
+    GIT_TAG aa0a375
 )
 
 FetchContent_Declare(nvjpg
@@ -591,14 +592,17 @@ target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
 add_library(dr_libs INTERFACE)
 target_include_directories(dr_libs INTERFACE ${dr_libs_SOURCE_DIR})
 
+find_package(ZLIB REQUIRED)
+find_path(zlib_inc zlib.h REQUIRED)
+
 add_library(libnxtc
     ${libnxtc_SOURCE_DIR}/source/nxtc.c
     ${libnxtc_SOURCE_DIR}/source/nxtc_log.c
     ${libnxtc_SOURCE_DIR}/source/nxtc_utils.c
 )
-target_include_directories(libnxtc PUBLIC ${libnxtc_SOURCE_DIR}/include)
+target_include_directories(libnxtc PUBLIC ${libnxtc_SOURCE_DIR}/include ${zlib_inc})
+target_link_libraries(libnxtc PUBLIC ZLIB::ZLIB)
 
-find_package(ZLIB REQUIRED)
 find_library(minizip_lib minizip REQUIRED)
 find_path(minizip_inc minizip REQUIRED)
 

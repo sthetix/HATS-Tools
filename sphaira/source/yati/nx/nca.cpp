@@ -4,6 +4,10 @@
 #include "yati/nx/nxdumptool_rsa.h"
 #include "utils/utils.hpp"
 #include "log.hpp"
+#include "nacp_compat.hpp"
+
+#include <nxtc.h>
+#include <cstdlib>
 
 namespace sphaira::nca {
 namespace {
@@ -223,7 +227,22 @@ Result ParseControl(const fs::FsPath& path, u64 program_id, void* nacp_out, s64 
         R_TRY(fs.OpenFile("/control.nacp", FsOpenMode_Read, &file));
 
         u64 bytes_read;
-        R_TRY(file.Read(nacp_off, nacp_out, nacp_size, 0, &bytes_read));
+        if (nacp_off == 0) {
+            NacpStruct nacp{};
+            R_TRY(file.Read(0, &nacp, sizeof(nacp), 0, &bytes_read));
+
+            if (auto* lang_entries = nxtcDecompressNacpTitleBlock(&nacp)) {
+                ON_SCOPE_EXIT(std::free(lang_entries));
+                std::memcpy(&nacp, lang_entries, sizeof(NacpLanguageEntry) * NacpLanguageEntryCount);
+                nacp.titles_data_format = 0;
+            } else {
+                log_write("[NACP] failed to decompress title block for %016lX\n", program_id);
+            }
+
+            std::memcpy(nacp_out, &nacp, nacp_size);
+        } else {
+            R_TRY(file.Read(nacp_off, nacp_out, nacp_size, 0, &bytes_read));
+        }
     }
 
     // read icon.

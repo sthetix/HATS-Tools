@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 // creates and installs nca's on the fly
 // based on hacbrewpack (romfs creation) and yati (installation)
 #include <switch.h>
@@ -466,14 +467,14 @@ void patch_npdm(std::vector<u8>& npdm, const NpdmPatch& patch) {
 void patch_nacp(NacpStruct& nacp, const NcapPatch& patch) {
     // patch title
     if (!patch.name.empty()) {
-        for (auto& lang : nacp.lang) {
+        for (auto& lang : NacpLanguageEntries(nacp)) {
             std::strncpy(lang.name, patch.name.c_str(), sizeof(lang.name)-1);
         }
     }
 
     // patch author
     if (!patch.name.empty()) {
-        for (auto& lang : nacp.lang) {
+        for (auto& lang : NacpLanguageEntries(nacp)) {
             std::strncpy(lang.author, patch.author.c_str(), sizeof(lang.author)-1);
         }
     }

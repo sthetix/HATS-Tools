@@ -39,7 +39,7 @@ struct PackMenu final : MenuBase {
 private:
     void SetIndex(s64 index);
     void FetchReleases();
-    void DownloadAndInstall();
+    void DownloadAndInstall(bool same_version_confirmed = false);
     void UpdateSubheading();
     void ShowReleaseDetails();
     void ShowLaunchDialog();

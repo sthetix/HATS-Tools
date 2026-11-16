@@ -403,7 +403,7 @@ void DownloadEntries(const Entry& entry) {
                 }
             }
 
-            App::Push<PopupList>("Select asset to download for "_i18n + entry.repo, asset_items, [entry, api_assets, asset_ptr](auto op_index){
+            App::Push<PopupList>("Select asset to download for "_i18n + entry.repo, asset_items, [entry, api_assets, asset_ptr, version = gh_entry.tag_name](auto op_index){
                 if (!op_index) {
                     return;
                 }
@@ -419,8 +419,17 @@ void DownloadEntries(const Entry& entry) {
                     }
                 }
 
-                const auto func = [entry, &asset_entry, ptr](){
-                    App::Push<ProgressBox>(0, "Downloading "_i18n, entry.repo, [entry, &asset_entry, ptr](auto pbox) -> Result {
+                const auto selected_version = !version.empty() && (version[0] == 'v' || version[0] == 'V')
+                    ? version.substr(1) : version;
+                const bool same_version = !strcasecmp(entry.owner.c_str(), "sthetix") &&
+                    !strcasecmp(entry.repo.c_str(), "HATS-Tools") && selected_version == APP_VERSION;
+                if (same_version) {
+                    pre_install_message = "You are already using HATS Tools " + selected_version +
+                        ". Download it again?" + (pre_install_message.empty() ? "" : "\n\n" + pre_install_message);
+                }
+
+                const auto func = [entry, asset_entry, ptr](){
+                    App::Push<ProgressBox>(0, "Downloading "_i18n, entry.repo, [entry, asset_entry, ptr](auto pbox) -> Result {
                         return DownloadApp(pbox, asset_entry, ptr);
                     }, [entry, ptr](Result rc){
                         homebrew::SignalChange();
@@ -443,7 +452,9 @@ void DownloadEntries(const Entry& entry) {
                 if (!pre_install_message.empty()) {
                     App::Push<OptionBox>(
                         pre_install_message,
-                        "Back"_i18n, "Download"_i18n, 1, [entry, func](auto op_index){
+                        same_version ? "Cancel"_i18n : "Back"_i18n,
+                        same_version ? "Download again"_i18n : "Download"_i18n,
+                        same_version ? 0 : 1, [entry, func](auto op_index){
                             if (op_index && *op_index) {
                                 func();
                             }

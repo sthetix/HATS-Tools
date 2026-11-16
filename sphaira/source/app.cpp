@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "ui/option_box.hpp"
 #include "ui/sidebar.hpp"
 #include "ui/popup_list.hpp"
@@ -869,7 +870,7 @@ void App::SetReplaceHbmenuEnable(bool enable) {
             // check we have already replaced hbmenu with HATS Tools
             NacpStruct hbmenu_nacp{};
             if (R_SUCCEEDED(nro_get_nacp("/hbmenu.nro", hbmenu_nacp))) {
-                if (std::strcmp(hbmenu_nacp.lang[0].name, "HATS Tools")) {
+                if (std::strcmp(NacpLanguageEntries(hbmenu_nacp)[0].name, "HATS Tools")) {
                     return;
                 }
             }
@@ -905,12 +906,12 @@ void App::SetReplaceHbmenuEnable(bool enable) {
 
                     // first, try and backup hats-tools, its not super important if this fails.
                     rc = nro_get_nacp(hats_path, hats_nacp);
-                    if (R_FAILED(rc) || std::strcmp(hats_nacp.lang[0].name, "HATS Tools")) {
+                    if (R_FAILED(rc) || std::strcmp(NacpLanguageEntries(hats_nacp)[0].name, "HATS Tools")) {
                         hats_path = "/switch/hats-tools.nro";
                         rc = nro_get_nacp(hats_path, hats_nacp);
                     }
 
-                    if (R_SUCCEEDED(rc) && !std::strcmp(hats_nacp.lang[0].name, "HATS Tools")) {
+                    if (R_SUCCEEDED(rc) && !std::strcmp(NacpLanguageEntries(hats_nacp)[0].name, "HATS Tools")) {
                         if (IsVersionNewer(hats_nacp.display_version, hbmenu_nacp.display_version)) {
                             if (R_FAILED(rc = g_app->m_fs->copy_entire_file(hats_path, "/hbmenu.nro"))) {
                                 log_write("failed to copy entire file: %s 0x%X module: %u desc: %u\n", hats_path.s, rc, R_MODULE(rc), R_DESCRIPTION(rc));
@@ -2600,7 +2601,7 @@ App::~App() {
                 NacpStruct hbmenu_nacp;
                 Result rc;
 
-                if (R_SUCCEEDED(rc = nro_get_nacp("/hbmenu.nro", hbmenu_nacp)) && std::strcmp(hbmenu_nacp.lang[0].name, "HATS Tools")) {
+                if (R_SUCCEEDED(rc = nro_get_nacp("/hbmenu.nro", hbmenu_nacp)) && std::strcmp(NacpLanguageEntries(hbmenu_nacp)[0].name, "HATS Tools")) {
                     log_write("backing up hbmenu.nro\n");
                     if (R_FAILED(rc = m_fs->copy_entire_file("/switch/hbmenu.nro", "/hbmenu.nro"))) {
                         log_write("failed to backup  hbmenu.nro\n");
@@ -2618,17 +2619,17 @@ App::~App() {
                 NacpStruct hbmenu_nacp;
                 Result rc;
 
-                if (R_SUCCEEDED(rc = nro_get_nacp("/hbmenu.nro", hbmenu_nacp)) && !std::strcmp(hbmenu_nacp.lang[0].name, "HATS Tools")) {
+                if (R_SUCCEEDED(rc = nro_get_nacp("/hbmenu.nro", hbmenu_nacp)) && !std::strcmp(NacpLanguageEntries(hbmenu_nacp)[0].name, "HATS Tools")) {
                     NacpStruct hats_nacp;
                     fs::FsPath hats_path = "/switch/hats-tools/hats-tools.nro";
 
                     rc = nro_get_nacp(hats_path, hats_nacp);
-                    if (R_FAILED(rc) || std::strcmp(hats_nacp.lang[0].name, "HATS Tools")) {
+                    if (R_FAILED(rc) || std::strcmp(NacpLanguageEntries(hats_nacp)[0].name, "HATS Tools")) {
                         hats_path = "/switch/hats-tools.nro";
                         rc = nro_get_nacp(hats_path, hats_nacp);
                     }
 
-                    if (R_SUCCEEDED(rc) && !std::strcmp(hats_nacp.lang[0].name, "HATS Tools")) {
+                    if (R_SUCCEEDED(rc) && !std::strcmp(NacpLanguageEntries(hats_nacp)[0].name, "HATS Tools")) {
                         if (IsVersionNewer(hbmenu_nacp.display_version, hats_nacp.display_version)) {
                             if (R_FAILED(rc = m_fs->copy_entire_file(GetExePath(), hats_path))) {
                                 log_write("failed to copy entire file: %s 0x%X module: %u desc: %u\n", hats_path.s, rc, R_MODULE(rc), R_DESCRIPTION(rc));

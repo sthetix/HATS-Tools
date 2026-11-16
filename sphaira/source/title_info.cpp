@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "title_info.hpp"
 #include "defines.hpp"
 #include "ui/types.hpp"
@@ -171,7 +172,7 @@ bool ExtractValidLanguageEntry(u64 source_title_id, NacpStruct& nacp, NacpLangua
         log_write("[TITLE] selected language entry invalid for %016lx, trying fallbacks\n", source_title_id);
     }
 
-    for (const auto& entry : nacp.lang) {
+    for (const auto& entry : NacpLanguageEntries(nacp)) {
         if (&entry == lang) {
             continue;
         }

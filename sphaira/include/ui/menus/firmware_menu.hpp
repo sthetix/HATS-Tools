@@ -39,7 +39,7 @@ private:
     void SetIndex(s64 index);
     void FetchReleases();
     void FetchFuses();
-    void DownloadFirmware();
+    void DownloadFirmware(bool same_version_confirmed = false);
     void SelectLocalFirmware();
     void UseLocalFirmware(const fs::FsPath& path);
     void OnLocalFirmwareCancelled();

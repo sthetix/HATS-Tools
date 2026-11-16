@@ -1,3 +1,4 @@
+#include "nacp_compat.hpp"
 #include "ui/menus/filebrowser.hpp"
 #include "ui/menus/homebrew.hpp"
 #include "ui/menus/file_viewer.hpp"
@@ -323,7 +324,7 @@ ForwarderForm::ForwarderForm(const FileAssocEntry& assoc, const RomDatabaseIndex
     }
 
     const auto name = m_nro.nacp.lang.name + std::string{" | "} + file_name;
-    const auto author = m_nacp.lang[0].author;
+    const auto author = NacpLanguageEntries(m_nacp)[0].author;
     const auto version = m_nacp.display_version;
     const auto icon = m_assoc.path;
 

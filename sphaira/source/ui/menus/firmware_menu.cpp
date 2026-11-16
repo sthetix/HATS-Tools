@@ -772,13 +772,29 @@ int FirmwareMenu::GetFuseCount(const std::string& version) {
     return -1; // Unknown
 }
 
-void FirmwareMenu::DownloadFirmware() {
+void FirmwareMenu::DownloadFirmware(bool same_version_confirmed) {
     if (m_releases.empty() || m_index >= (s64)m_releases.size()) {
         return;
     }
 
     const auto& release = m_releases[m_index];
     std::string display_name = release.name.empty() ? release.tag_name : release.name;
+
+    const auto target_version = ExtractFirmwareVersion(release.tag_name);
+    const auto current_version = ExtractFirmwareVersion(m_current_firmware);
+    if (!same_version_confirmed && !target_version.empty() && !current_version.empty() &&
+        !isVersionLower(target_version, current_version) && !isVersionLower(current_version, target_version)) {
+        App::Push<OptionBox>(
+            "Your current firmware on " + GetFirmwareTargetName() + " is already " +
+                current_version + ". Download it again?",
+            "Cancel"_i18n, "Download again"_i18n, 0,
+            [this](auto op_index) {
+                if (op_index && *op_index == 1) {
+                    DownloadFirmware(true);
+                }
+            });
+        return;
+    }
 
     // A valid /firmware directory can be reused, including after rebooting
     // from sysMMC into emuMMC. Avoid downloading the same package twice.
@@ -847,7 +863,7 @@ void FirmwareMenu::CheckCachedFirmware(const FirmwareEntry& release, const std::
                         } else {
                             // Remove only the extracted cache; DownloadAndExtract recreates it.
                             fs::FsNativeSd().DeleteDirectoryRecursively(FIRMWARE_DEST);
-                            DownloadFirmware();
+                            DownloadFirmware(true);
                         }
                     });
             } else {
@@ -858,7 +874,7 @@ void FirmwareMenu::CheckCachedFirmware(const FirmwareEntry& release, const std::
                     [this](auto op_index) {
                         if (op_index && *op_index == 1) {
                             fs::FsNativeSd().DeleteDirectoryRecursively(FIRMWARE_DEST);
-                            DownloadFirmware();
+                            DownloadFirmware(true);
                         }
                     });
             }
