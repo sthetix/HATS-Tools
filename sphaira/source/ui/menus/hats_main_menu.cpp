@@ -381,29 +381,13 @@ void StartCleanEmummcFlow() {
             App::Push<OptionBox>("No user games or Account/Device saves found.", "OK"_i18n);
             return;
         }
-        auto details = plan->details;
-        details.insert(details.begin(), {
-            "Continue to confirmation",
-            "Nintendo: /" + plan->nintendo_path,
-            "Games: " + std::to_string(plan->applications.size()) + " | Updates: " +
-                std::to_string(plan->updates) + " | DLC: " + std::to_string(plan->dlcs),
-            "Account saves: " + std::to_string(plan->account_saves) +
-                " | Device saves: " + std::to_string(plan->device_saves),
-            "Accounts, settings and system data are kept",
-        });
-        App::Push<PopupList>("Clean emuMMC - review targets (B cancels)", details,
-            [plan](auto index) {
-                if (!index || *index != 0) {
-                    return;
+        App::Push<OptionBox>("Delete " + std::to_string(plan->applications.size()) +
+            " games (including updates/DLC) and " + std::to_string(plan->saves.size()) +
+            " saves from emuMMC?\nAccounts and settings are kept.\nThis cannot be undone.",
+            "Cancel"_i18n, "Clean emuMMC", 0, [plan](auto choice) {
+                if (choice && *choice == 1) {
+                    RunCleanEmummc(plan);
                 }
-                App::Push<OptionBox>("Delete " + std::to_string(plan->applications.size()) +
-                    " games (including updates/DLC) and " + std::to_string(plan->saves.size()) +
-                    " saves from emuMMC?\nAccounts and settings are kept.\nThis cannot be undone.",
-                    "Cancel"_i18n, "Clean emuMMC", 0, [plan](auto choice) {
-                        if (choice && *choice == 1) {
-                            RunCleanEmummc(plan);
-                        }
-                    });
             });
     });
 }
