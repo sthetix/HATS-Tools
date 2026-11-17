@@ -264,8 +264,9 @@ auto ScanCleanEmummc(ProgressBox* pbox, CleanEmummcPlan& plan) -> Result {
 
 void RunCleanEmummc(const std::shared_ptr<CleanEmummcPlan>& plan) {
     auto report = std::make_shared<PopupList::Items>();
+    auto cleaned = std::make_shared<bool>(false);
     App::Push<ProgressBox>(0, "Clean emuMMC", "Verifying targets...",
-        [plan, report](auto pbox) -> Result {
+        [plan, report, cleaned](auto pbox) -> Result {
             CleanEmummcPlan current;
             R_TRY(ScanCleanEmummc(pbox, current));
             R_UNLESS(current.nintendo_path == plan->nintendo_path && current.identity == plan->identity,
@@ -282,7 +283,6 @@ void RunCleanEmummc(const std::shared_ptr<CleanEmummcPlan>& plan) {
                 }
                 const auto line = target + (R_SUCCEEDED(rc) ? " OK" : " FAILED 0x" + CleanId(rc));
                 report->push_back(line);
-                log_write("[Clean emuMMC] %s\n", line.c_str());
                 pbox->UpdateTransfer(++completed, total);
             };
             auto verify = [&]() -> Result {
@@ -350,14 +350,23 @@ void RunCleanEmummc(const std::shared_ptr<CleanEmummcPlan>& plan) {
                 report->insert(report->begin(), "Cleaning stopped: environment verification failed 0x" + CleanId(erase_rc));
             }
             report->insert(report->begin(), "Not processed: " + std::to_string(total - completed));
+            *cleaned = R_SUCCEEDED(erase_rc) && failed == 0 && completed == total &&
+                R_SUCCEEDED(scan_rc) && remaining.applications.empty() && remaining.saves.empty();
             return 0;
         },
-        [report](Result rc) {
+        [report, cleaned](Result rc) {
+            for (const auto& line : *report) {
+                log_write("[Clean emuMMC] %s\n", line.c_str());
+            }
             if (R_FAILED(rc)) {
                 App::PushErrorBox(rc, "Clean emuMMC blocked: verification or target scan failed. Scan again.");
                 return;
             }
-            App::Push<PopupList>("Clean emuMMC results", *report, PopupList::Callback{});
+            if (*cleaned) {
+                App::Push<OptionBox>("Your emuMMC has been cleaned.", "OK"_i18n);
+                return;
+            }
+            App::Push<OptionBox>("emuMMC cleaning could not be fully completed or verified.\nCheck the log for details.", "OK"_i18n);
         }, false);
 }
 
@@ -382,8 +391,8 @@ void StartCleanEmummcFlow() {
             return;
         }
         App::Push<OptionBox>("Delete " + std::to_string(plan->applications.size()) +
-            " games (including updates/DLC) and " + std::to_string(plan->saves.size()) +
-            " saves from emuMMC?\nAccounts and settings are kept.\nThis cannot be undone.",
+            " games (+updates/DLC) and " + std::to_string(plan->saves.size()) +
+            " saves?\nAccounts/settings kept. Cannot be undone.",
             "Cancel"_i18n, "Clean emuMMC", 0, [plan](auto choice) {
                 if (choice && *choice == 1) {
                     RunCleanEmummc(plan);
